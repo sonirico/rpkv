@@ -20,6 +20,27 @@ func newTestMockClock(t *testing.T) *clocktest.MockClock {
 	return clocktest.NewMockClock(testStart)
 }
 
+func requireFired(t *testing.T, ch <-chan time.Time, want time.Time) {
+	t.Helper()
+
+	select {
+	case got := <-ch:
+		assert.Equal(t, want, got)
+	default:
+		require.Fail(t, "channel did not fire when expected")
+	}
+}
+
+func requireNotFired(t *testing.T, ch <-chan time.Time) {
+	t.Helper()
+
+	select {
+	case <-ch:
+		require.Fail(t, "channel fired before it was expected to")
+	default:
+	}
+}
+
 func TestMockClock_Now(t *testing.T) {
 	t.Run("returns the start time before any Advance", func(t *testing.T) {
 		t.Parallel()
@@ -74,11 +95,7 @@ func TestMockClock_After(t *testing.T) {
 
 		sut.Advance(5 * time.Second)
 
-		select {
-		case <-ch:
-			require.Fail(t, "After fired before its deadline was reached")
-		default:
-		}
+		requireNotFired(t, ch)
 	})
 
 	t.Run("fires when Advance reaches the deadline exactly", func(t *testing.T) {
@@ -90,12 +107,7 @@ func TestMockClock_After(t *testing.T) {
 
 		sut.Advance(10 * time.Second)
 
-		select {
-		case got := <-ch:
-			assert.Equal(t, deadline, got)
-		default:
-			require.Fail(t, "After did not fire once its deadline was reached")
-		}
+		requireFired(t, ch, deadline)
 	})
 
 	t.Run("fires when Advance passes the deadline", func(t *testing.T) {
@@ -107,12 +119,7 @@ func TestMockClock_After(t *testing.T) {
 
 		sut.Advance(15 * time.Second)
 
-		select {
-		case got := <-ch:
-			assert.Equal(t, deadline, got)
-		default:
-			require.Fail(t, "After did not fire once its deadline was passed")
-		}
+		requireFired(t, ch, deadline)
 	})
 
 	t.Run(
@@ -124,12 +131,7 @@ func TestMockClock_After(t *testing.T) {
 
 			ch := sut.After(0)
 
-			select {
-			case got := <-ch:
-				assert.Equal(t, testStart, got)
-			default:
-				require.Fail(t, "After(0) did not fire immediately")
-			}
+			requireFired(t, ch, testStart)
 		},
 	)
 
@@ -142,18 +144,8 @@ func TestMockClock_After(t *testing.T) {
 
 		sut.Advance(10 * time.Second)
 
-		select {
-		case got := <-soon:
-			assert.Equal(t, testStart.Add(5*time.Second), got)
-		default:
-			require.Fail(t, "the due waiter did not fire")
-		}
-
-		select {
-		case <-later:
-			require.Fail(t, "the not-yet-due waiter fired early")
-		default:
-		}
+		requireFired(t, soon, testStart.Add(5*time.Second))
+		requireNotFired(t, later)
 	})
 }
 
