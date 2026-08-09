@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Stop hook: blocks ending a session with unpushed Go commits that have no
-# quality-pass receipt. See CLAUDE.md's "Subagent contract" — the quality
+# quality-pass receipt. See CLAUDE.md's "Subagent contract" - the quality
 # pass used to depend on the operator remembering to run it, and it wasn't.
 # This is the structural replacement for that memory.
 #
@@ -12,7 +12,7 @@
 # instead, and only a human re-reading the file caught it.
 #
 # The gate now reads scripts/quality-pass.sh's JSON receipt, whose contents
-# are measurements — exit codes, changed-file lists, per-function coverage —
+# are measurements - exit codes, changed-file lists, per-function coverage -
 # that the script computes itself. An agent can still decline to run it, but
 # it cannot compose a passing one by writing paragraphs.
 set -euo pipefail
@@ -60,7 +60,7 @@ if [[ ! -s "$receipt" ]]; then
 fi
 
 if ! jq -e . "$receipt" >/dev/null 2>&1; then
-    echo "${receipt} is not valid JSON — regenerate it with scripts/quality-pass.sh" >&2
+    echo "${receipt} is not valid JSON - regenerate it with scripts/quality-pass.sh" >&2
     exit 2
 fi
 
@@ -70,23 +70,23 @@ receipt_sha="$(jq -r '.sha // ""' "$receipt")"
 if [[ "$receipt_sha" != "$head_sha" ]]; then
     {
         echo "${receipt} records sha ${receipt_sha}, but HEAD is ${head_sha}"
-        echo "the tree moved after the pass ran — re-run scripts/quality-pass.sh"
+        echo "the tree moved after the pass ran - re-run scripts/quality-pass.sh"
     } >&2
     exit 2
 fi
 
 blocked=0
 
-# Accepting a measured failure stays possible — some gaps genuinely need a
+# Accepting a measured failure stays possible - some gaps genuinely need a
 # live server, or production seams that should not be cut for a coverage
-# number — but it costs an explicit <name>.accepted file stating why, which
+# number - but it costs an explicit <name>.accepted file stating why, which
 # is a decision on the record rather than a sentence in a chat log. Per
 # CLAUDE.md that file is the main session's to write, never the agent's
 # whose work is being gated.
 check_exit="$(jq -r '.check.exit_code // 1' "$receipt")"
 if [[ "$check_exit" != "0" ]] && [[ ! -s "${receipt_dir}/check.accepted" ]]; then
     {
-        echo "quality-pass receipt records 'just check' exit ${check_exit} — the suite does not pass"
+        echo "quality-pass receipt records 'just check' exit ${check_exit} - the suite does not pass"
         echo "  fix it, or record why it is acceptable in ${receipt_dir}/check.accepted"
     } >&2
     blocked=1
@@ -114,7 +114,7 @@ if [[ "$uncovered_count" -gt 0 ]] && [[ ! -s "${receipt_dir}/coverage.accepted" 
 fi
 
 if (( blocked )); then
-    echo "a measured quality-pass failure is not a green pass — see CLAUDE.md \"Subagent contract\"." >&2
+    echo "a measured quality-pass failure is not a green pass - see CLAUDE.md \"Subagent contract\"." >&2
     exit 2
 fi
 

@@ -2,10 +2,10 @@
 
 Key-value reads over Redpanda topics without duplicating values: a
 pure-Go sidecar (franz-go + Pebble) keeping a secondary index
-`key → (partition, offset)`, values served from the log itself over the
+`key -> (partition, offset)`, values served from the log itself over the
 Kafka protocol. In-broker/upstream work is parked in
 `../redpanda/rpkv-plan/` and is out of scope in this repo. Full context
-lives in `docs/SPEC.md` — its "Contracts (frozen)" section is
+lives in `docs/SPEC.md` - its "Contracts (frozen)" section is
 load-bearing; decisions in `docs/adr/`; work
 state in `docs/ROADMAP.md`; the PM session's operating manual in
 `docs/PM-BRIEF.md`.
@@ -20,7 +20,7 @@ memory; no session may depend on conversational context from a previous one.
    otherwise.
 2. The stateful and algorithmic designs (index schema, checkpoint
    recovery, ingest ordering, the read verification protocol) are already
-   frozen in SPEC "Contracts" — implement them as written, never re-open
+   frozen in SPEC "Contracts" - implement them as written, never re-open
    them in chat. Only a genuinely new stateful design with no frozen
    contract gets proposed and confirmed first.
 3. A task is done only when its verification criterion (stated inline in the
@@ -36,7 +36,7 @@ memory; no session may depend on conversational context from a previous one.
 
 Implementation is delegated to subagents; the main session writes the spec,
 reviews the result, runs the gate and pushes. This contract is vendored from
-vigia, where every rule was paid for by a real failure — the eleven-entry
+vigia, where every rule was paid for by a real failure - the eleven-entry
 ledger lives in vigia's `CLAUDE.md` ("How this got its shape") and is worth
 reading once. The common thread: every failure was caught by a person
 looking, and every fix moved the catching into code. rpkv imports the rules
@@ -48,8 +48,8 @@ entry there.
 The delegation clauses (invoke `dev:go-patterns` before writing Go; report
 every judgment call; stay inside the named blast radius; never push, never
 write a receipt or `.accepted`) are **vendored as agent definitions** in
-`.claude/agents/` — `implementer`, `reviewer-tests-quality`,
-`reviewer-tests-coverage`, `reviewer-go-patterns`, `fixer` — each with
+`.claude/agents/` - `implementer`, `reviewer-tests-quality`,
+`reviewer-tests-coverage`, `reviewer-go-patterns`, `fixer` - each with
 `model: sonnet` pinned in its frontmatter. Spawn them by `subagent_type` and
 add only the block's spec. Do not re-type the clauses into a prompt: every
 retyping is a chance to drift. When this file and an agent definition
@@ -68,7 +68,7 @@ does them:
 - **The diff against `dev:go-patterns`' rules.** The skill's *invocation*
   is recorded by the global hook (`~/.claude/receipts/skills/`); whether
   the agent followed it is not.
-- **Assertion counts.** `bash scripts/assertion-counts.sh` — per changed
+- **Assertion counts.** `bash scripts/assertion-counts.sh` - per changed
   test file, the count at the merge base against HEAD; investigate any
   decrease.
 
@@ -80,7 +80,7 @@ hook's own forgiveness rules so the two cannot disagree.
 ### The quality pass
 
 A **fresh Sonnet subagent with clean context** per role, spawned the moment
-the implementer reports done and the main session's review has passed —
+the implementer reports done and the main session's review has passed -
 never the agent that wrote the code, and never one that read the
 implementation transcript. Implementation and review are strictly
 sequential.
@@ -88,23 +88,23 @@ sequential.
 1. Review runs as **three subagents, one skill each**: `dev:iterate
    dev:tests-quality branch`, `dev:iterate dev:tests-coverage branch`, and
    `dev:go-patterns` against the whole diff. Whatever `go-patterns` raises
-   goes to a **fourth** agent (`fixer`) — the one that found it does not
+   goes to a **fourth** agent (`fixer`) - the one that found it does not
    fix it.
 2. **The two `dev:iterate` loops run one after the other, never at the same
    time** (`iterate`'s `--init` takes a worktree lock and refuses a second
-   loop — a reviewer turned away by the lock is the rule working);
+   loop - a reviewer turned away by the lock is the rule working);
    `go-patterns` runs alongside either; the fixer runs after both. The main
    session's worktree must be **clean before any reviewer is spawned**.
 3. **If `tests-quality`'s Step-0 guard fires on a tests-only block**, re-run
    with `dev:tests-quality --audit`. If the diff touches production code,
-   the guard is right — restore or split.
+   the guard is right - restore or split.
 4. **Report the skills' findings as findings, never as a pass.** Their
    output is testimony, not a receipt; nothing gates on it.
 5. **Each reviewer works in its own turn.** A turn that ends without files
    on disk is a failed run, not a report.
-6. **Findings land in `.claude/receipts/<sha>/findings/<role>.md`** — one
+6. **Findings land in `.claude/receipts/<sha>/findings/<role>.md`** - one
    file per reviewer (`tests-quality`, `tests-coverage`, `go-patterns`,
-   `fixer`), never a shared one — and the main session reads the files, not
+   `fixer`), never a shared one - and the main session reads the files, not
    the messages.
 
 **The gate is `bash scripts/quality-pass.sh`.** It writes
@@ -117,7 +117,7 @@ commits lacking that receipt; git's pre-push hook
 `githooks/` directory) reads the same receipt at the one point a push
 cannot walk around it. **Accepting a measured failure is allowed** at the
 cost of a `check.accepted` / `coverage.accepted` file beside the receipt
-saying why — written by the **main session only**, never the gated agent.
+saying why - written by the **main session only**, never the gated agent.
 
 **The gates are themselves tested.** `scripts/harness-test.sh` is a
 dependency of `just check` and runs first, over throwaway repositories.
@@ -138,7 +138,7 @@ Isolation is a policy, not a per-call judgment:
 | Agent | Isolation |
 |---|---|
 | Read-only reviewers (`reviewer-go-patterns`) | No worktree; own findings file. |
-| `dev:iterate` loops | Main checkout, serialized, lock-enforced — their scope is `branch`, the diff under review *is* this checkout's branch. |
+| `dev:iterate` loops | Main checkout, serialized, lock-enforced - their scope is `branch`, the diff under review *is* this checkout's branch. |
 | One implementer, or the fixer | Main checkout; implementation and review are strictly sequential, nothing else is writing. |
 | Parallel implementers | **Forbidden without `isolation: worktree`**, plus an explicit merge-back owned by the main session. |
 
@@ -148,7 +148,7 @@ Isolation is a policy, not a per-call judgment:
 the pass, then push.** `branch` diffs against the merge base with
 `origin/<default>`, so unpushed local commits are exactly the block under
 review. `uncommitted` degenerates on iteration 2; `commit` reviews the
-loop's own homework — both are wrong for the pass. `commit` remains right
+loop's own homework - both are wrong for the pass. `commit` remains right
 for a standalone review of an already-pushed block: a repair, not the
 workflow.
 
@@ -157,7 +157,7 @@ changes an interface (hand-review the flagged files, assertion counts
 included); `refs/remotes/origin/HEAD` must exist or `branch` scope
 silently resolves to an empty diff (`git remote set-head origin main`,
 once per clone); a subagent's skill *invocation* is verifiable via the
-global PostToolUse hook — its absence is a finding, not a silence to
+global PostToolUse hook - its absence is a finding, not a silence to
 interpret charitably.
 
 ## Invariants (non-negotiable, see ADRs for rationale)
@@ -167,14 +167,14 @@ interpret charitably.
   forbidden move. (ADR-001)
 - **The index is a projection.** Destroy it and it rebuilds by replaying
   the topic; its visible state must equal a naive materialization at the
-  same checkpoint — that equivalence is a property test, not a comment.
+  same checkpoint - that equivalence is a property test, not a comment.
   (SPEC "Semantics")
 - **Index apply and checkpoint advance commit in one Pebble batch.** A
   crash between them is unrepresentable; recovery is resume + idempotent
   re-apply. (ADR-003)
 - **Only the public Kafka protocol, ever.** Reading the broker's data
   directory is closed permanently. Fetch results pass the read
-  verification protocol — never trusted blindly. (ADR-004, SPEC
+  verification protocol - never trusted blindly. (ADR-004, SPEC
   "Compaction model")
 - **Pure Go**: no CGo, franz-go as the only Kafka client, Pebble as the
   only store. `CGO_ENABLED=0` must build. (ADR-002)
@@ -195,10 +195,10 @@ interpret charitably.
 
 ## Testing discipline
 
-- Index semantics: property-based tests with `pgregory.net/rapid` — the
+- Index semantics: property-based tests with `pgregory.net/rapid` - the
   naive-materialization equivalence, crash-recovery idempotence, replay
   determinism.
-- Phase-1/2 tests are **contract tests** (produce records → observe
+- Phase-1/2 tests are **contract tests** (produce records -> observe
   `Get`), black-box on purpose: they double as the acceptance suite for
   the parked upstream plan. Coupling them to internals loses that value.
   (ADR-002)
@@ -212,10 +212,10 @@ interpret charitably.
 ## Layout
 
 ```
-index/              Pebble store: key→Pointer, checkpoints, atomic batches
-ingest/             topic consumer → index apply (franz-go)
+index/              Pebble store: key->Pointer, checkpoints, atomic batches
+ingest/             topic consumer -> index apply (franz-go)
 fetch/              path-A reader: single-record fetch by (partition, offset)
-server/             query surface: Get(topic, key) → value, pointer, checkpoint
+server/             query surface: Get(topic, key) -> value, pointer, checkpoint
 clock/              injectable Clock; sole production caller of time.Now/After
 
 cmd/rpkv/           main: wiring owner, and nothing but wiring

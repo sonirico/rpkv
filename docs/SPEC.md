@@ -1,4 +1,4 @@
-# rpkv — Specification
+# rpkv - Specification
 
 What the system is, its semantics, and its **frozen contracts**. How it is
 built lives in `docs/adr/`; when, in `docs/ROADMAP.md`. Sections marked
@@ -11,12 +11,12 @@ never a choice to make silently.
 rpkv turns Redpanda topics into a queryable key-value store **without
 duplicating a single value**. It is a pure-Go sidecar beside an unmodified
 Redpanda: it consumes the indexed topics with franz-go, maintains a Pebble
-index `key → (partition, offset)` — pointer-sized entries regardless of
-value size — and serves `Get(topic, key)` by fetching exactly one record
+index `key -> (partition, offset)` - pointer-sized entries regardless of
+value size - and serves `Get(topic, key)` by fetching exactly one record
 from the log over the Kafka protocol. The trade is explicit: storage
 economy and a single source of truth, paid with a broker round-trip per
 read. (An in-broker variant that collapses that latency is a separate,
-parked plan: `../redpanda/rpkv-plan/` — out of scope in this repo.)
+parked plan: `../redpanda/rpkv-plan/` - out of scope in this repo.)
 
 ## Hard constraints (frozen)
 
@@ -27,23 +27,23 @@ parked plan: `../redpanda/rpkv-plan/` — out of scope in this repo.)
 - **Only the public Kafka protocol.** Nothing ever reads the broker's
   data directory, in any phase, for any reason. (ADR-004)
 - **No value is ever stored, cached or copied.** (ADR-001)
-- **Resilient to upstream compaction and retention** — by design, not by
+- **Resilient to upstream compaction and retention** - by design, not by
   luck; the mechanisms are the "Compaction model" section below and their
   tests are roadmap exit criteria.
 
 ## Domain model
 
-- **Topic** — a Redpanda topic used as the system of record; one Pebble
+- **Topic** - a Redpanda topic used as the system of record; one Pebble
   database per indexed topic.
-- **Key** — the Kafka record key, verbatim bytes. rpkv imposes no schema.
+- **Key** - the Kafka record key, verbatim bytes. rpkv imposes no schema.
   A record with a null key is not indexable and is skipped (counted in
   metrics).
-- **Pointer** — `(partition int32, offset int64)`: where the latest record
+- **Pointer** - `(partition int32, offset int64)`: where the latest record
   for a key lives.
-- **Tombstone** — a record with a **null** value (franz-go
+- **Tombstone** - a record with a **null** value (franz-go
   `Record.Value == nil`; an empty non-nil value is a normal value).
   Applying it deletes the key from the index.
-- **Checkpoint** — per partition, the highest offset **applied** to the
+- **Checkpoint** - per partition, the highest offset **applied** to the
   index. Index apply and checkpoint advance commit in one Pebble batch.
 
 ## Semantics
@@ -56,12 +56,12 @@ parked plan: `../redpanda/rpkv-plan/` — out of scope in this repo.)
   partition's checkpoint; the response carries pointer and checkpoint so
   callers can reason about staleness.
 - **Correctness invariant** (the property tests defend it): for any record
-  sequence, index state ≡ a naive `map[key]value` materialization at the
+  sequence, index state == a naive `map[key]value` materialization at the
   same checkpoint.
 - **Recovery** = resume from checkpoint + idempotent re-apply
   (at-least-once; applying record N twice writes the same pointer twice).
 
-## Compaction model (frozen — this is the resilience design)
+## Compaction model (frozen - this is the resilience design)
 
 Redpanda compaction removes superseded records; it **preserves each key's
 latest record at its original logical offset**. Logical offsets never
@@ -75,17 +75,17 @@ move. Three consequences, three mechanisms:
 2. **Read verification protocol (frozen).** Kafka fetch semantics: a fetch
    at a compacted-away offset returns records from the next available
    offset. Therefore `fetch/` never trusts a fetch blindly:
-   - Fetched record with `offset == pointer.Offset` and byte-equal key →
+   - Fetched record with `offset == pointer.Offset` and byte-equal key ->
      the value. (Batch-level subtlety: the fetch returns the containing
      batch; the reader selects the record with exactly `pointer.Offset`.)
    - Record at `pointer.Offset` absent from the response (first returned
-     offset > pointer's, or offset present with different key — cannot
-     happen at same offset, treated identically) → **superseded**: a newer
+     offset > pointer's, or offset present with different key - cannot
+     happen at same offset, treated identically) -> **superseded**: a newer
      version existed; the server waits for the checkpoint to advance and
      re-resolves (bounded; see server contract), so the caller gets the
      newer value or a 503, never a wrong or missing value.
    - `pointer.Offset < log start offset` (retention `delete` removed it)
-     → **evicted**: surfaced as 410; rpkv does not resurrect what the log
+     -> **evicted**: surfaced as 410; rpkv does not resurrect what the log
      dropped.
 3. **Rebuild convergence.** Replaying a *compacted* log yields the same
    final index state as replaying the full history (compaction keeps
@@ -95,7 +95,7 @@ move. Three consequences, three mechanisms:
 
 Tombstones: Redpanda drops a tombstone only after older records for that
 key are gone (`delete.retention.ms`); a rebuild after that sees nothing
-for the key → absent. Consistent with the live index, which deleted it.
+for the key -> absent. Consistent with the live index, which deleted it.
 
 ## Contracts (frozen)
 
@@ -104,14 +104,14 @@ Anything genuinely not covered here is an implementation detail the
 implementer chooses and reports; it is never worth a question to the
 operator.
 
-### Pebble layout — one DB per topic at `<data_dir>/topics/<topic>/`
+### Pebble layout - one DB per topic at `<data_dir>/topics/<topic>/`
 
 Kafka topic names are `[a-zA-Z0-9._-]+`, filesystem-safe verbatim.
 
 | Pebble key | Pebble value |
 |---|---|
-| `0x01 ‖ user_key` | `partition int32 BE (4B) ‖ offset int64 BE (8B)` |
-| `0x02 ‖ partition int32 BE (4B)` | `checkpoint offset int64 BE (8B)` — highest **applied** offset |
+| `0x01 ++ user_key` | `partition int32 BE (4B) ++ offset int64 BE (8B)` |
+| `0x02 ++ partition int32 BE (4B)` | `checkpoint offset int64 BE (8B)` - highest **applied** offset |
 
 No other keys. All writes go through `pebble.Batch` with `Sync` on the
 batch commit that carries a checkpoint advance.
@@ -140,7 +140,7 @@ func NewIngester(client *kgo.Client, index *index.Index, topic string, logger *s
 func (in *Ingester) Run(ctx context.Context) error
 ```
 
-Frozen behavior: **no consumer groups** — direct partition assignment of
+Frozen behavior: **no consumer groups** - direct partition assignment of
 all partitions (`kgo.ConsumePartitions`), each starting at
 `checkpoint+1`, or the partition's log start when no checkpoint exists.
 The checkpoint is the index's, atomically with applies; broker-side
@@ -162,7 +162,7 @@ is transport-level only.
 
 ### `server/`
 
-`GET /v1/kv/{topic}/{key}` — `{key}` is percent-encoded raw bytes;
+`GET /v1/kv/{topic}/{key}` - `{key}` is percent-encoded raw bytes;
 `?key_encoding=base64url` accepts RFC 4648 base64url instead.
 
 | Case | Response |
@@ -176,7 +176,7 @@ is transport-level only.
 Supersede handling: on `Superseded`, the server polls
 `index.Checkpoint(ptr.Partition)` until it passes the fetched-forward
 offset, re-resolves and re-fetches; total budget **2s**, waits through the
-`clock.Clock` interface (mockable). `GET /healthz` → `200` always, JSON
+`clock.Clock` interface (mockable). `GET /healthz` -> `200` always, JSON
 body with per-partition checkpoint and log-end lag.
 
 ### `cmd/rpkv` configuration
@@ -211,6 +211,6 @@ independently).
 
 rpkv chooses space over read latency: topics whose values are too big to
 duplicate, read at modest rates. Reads of keys whose segments were evicted
-to tiered storage pay object-storage latency — measured and published in
+to tiered storage pay object-storage latency - measured and published in
 phase 3, not hidden. Read-heavy hot state belongs in a materialized store;
 that quadrant is conceded.

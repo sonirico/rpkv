@@ -2,8 +2,8 @@
 # Assertion-count diff for the current block: for every changed *_test.go
 # file, compares `grep -c 'require\.\|assert\.'` at HEAD against the same
 # file on the base branch. CLAUDE.md's "Subagent contract" has the PM run
-# this by hand every block — "a silently dropped assertion during a
-# call-site rewrite is exactly what slips through everything else" — this
+# this by hand every block - "a silently dropped assertion during a
+# call-site rewrite is exactly what slips through everything else" - this
 # vendors it instead of re-typing the grep each time (docs/PM-BRIEF.md
 # Step 0.3).
 #
@@ -16,16 +16,16 @@ cd "$(git rev-parse --show-toplevel)"
 
 base_ref="${1:-origin/HEAD}"
 if ! git rev-parse --verify --quiet "$base_ref" >/dev/null; then
-    echo "assertion-counts: $base_ref is missing — run 'git remote set-head origin main' once per clone" >&2
+    echo "assertion-counts: $base_ref is missing - run 'git remote set-head origin main' once per clone" >&2
     exit 1
 fi
 
 merge_base="$(git merge-base "$base_ref" HEAD)"
 range="${merge_base}..HEAD"
 
-# `git show <ref>:<path>` fails when the path does not exist at that ref —
+# `git show <ref>:<path>` fails when the path does not exist at that ref -
 # a new or deleted file, exactly the cases this script has to call out
-# rather than silently score as "decreased to zero". Missing → 0, not an
+# rather than silently score as "decreased to zero". Missing -> 0, not an
 # error.
 count_at() {
     local ref="$1" path="$2"
@@ -55,7 +55,7 @@ for entry in "${changed[@]}"; do
     D)
         base_count="$(count_at "$merge_base" "$path")"
         printf '%-10s %-8s %-8s %s\n' "DELETED" "$base_count" "-" "$path"
-        echo "  assertions gone with the file — confirm that is intended"
+        echo "  assertions gone with the file - confirm that is intended"
         ;;
     R*)
         base_count="$(count_at "$merge_base" "$path")"
@@ -83,7 +83,7 @@ done
 echo
 
 if (( decreased )); then
-    echo "assertion-counts: at least one file's assertion count decreased — see DECREASED rows above" >&2
+    echo "assertion-counts: at least one file's assertion count decreased - see DECREASED rows above" >&2
     exit 1
 fi
 

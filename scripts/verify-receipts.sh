@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Deterministic verification of the receipts for a given sha. This replaces
 # the `jq` one-liner over quality-pass.json and mutation-*.json the PM
-# session was re-typing inline every block — see docs/PM-BRIEF.md Step 0.3
+# session was re-typing inline every block - see docs/PM-BRIEF.md Step 0.3
 # ("the second time you find yourself writing the same inline script, stop
 # and vendor it").
 #
@@ -86,7 +86,7 @@ if [[ "$uncovered_count" -gt 0 ]] && [[ ! -s "${receipt_dir}/coverage.accepted" 
 fi
 
 # .accepted files are what turn a measured failure into a recorded decision
-# — list every one present, whether or not it was needed above, so the
+# - list every one present, whether or not it was needed above, so the
 # operator sees what has been forgiven and why.
 accepted_files=()
 while IFS= read -r -d '' f; do
@@ -108,7 +108,7 @@ done < <(find "$receipt_dir" -maxdepth 1 -name 'mutation-*.json' -print0 | sort 
 
 echo "mutation receipts: ${#mutation_files[@]}"
 if [[ ${#mutation_files[@]} -eq 0 ]]; then
-    echo "  none — most blocks have none, this is not by itself a failure"
+    echo "  none - most blocks have none, this is not by itself a failure"
 else
     for f in "${mutation_files[@]}"; do
         m_file="$(jq -r '.file // ""' "$f")"
@@ -131,7 +131,7 @@ fi
 
 if (( blocked )); then
     echo >&2
-    echo "verify-receipts: FAIL — see above" >&2
+    echo "verify-receipts: FAIL - see above" >&2
     exit 1
 fi
 
