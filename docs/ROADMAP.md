@@ -27,7 +27,7 @@ never silently becomes `[x]`.
       Verification: `just check` exits 0 with the toolchain installed
       (`just setup` first); `just quality-pass` writes a receipt that
       `bash scripts/verify-receipts.sh` accepts.
-- [ ] **Local Redpanda dev loop.** justfile recipes `redpanda-up` /
+- [x] **Local Redpanda dev loop.** justfile recipes `redpanda-up` /
       `redpanda-down`: single-node Redpanda in Docker
       (`docker.redpanda.com/redpandadata/redpanda`, fixed version pin,
       port 19092 external), plus `test-integration` running
