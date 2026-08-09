@@ -1,9 +1,6 @@
 /rpkv
 *.test
-docs/spikes/**/bin/
-
-# The redpanda fork is its own checkout, never vendored here (ADR-005).
-/redpanda/
+/rpkv-data/
 
 # agent worktrees, receipts, and local state; settings.json must stay
 # committable since it wires the Stop hook

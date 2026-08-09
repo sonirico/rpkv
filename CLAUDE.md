@@ -1,9 +1,12 @@
 # rpkv
 
-Key-value reads over Redpanda topics without duplicating values: a Pebble
-secondary index `key → (partition, offset)`, values served from the log
-itself. Sidecar first, Redpanda fork second, direct segment reads last and
-gated. Full context lives in `docs/SPEC.md`; decisions in `docs/adr/`; work
+Key-value reads over Redpanda topics without duplicating values: a
+pure-Go sidecar (franz-go + Pebble) keeping a secondary index
+`key → (partition, offset)`, values served from the log itself over the
+Kafka protocol. In-broker/upstream work is parked in
+`../redpanda/rpkv-plan/` and is out of scope in this repo. Full context
+lives in `docs/SPEC.md` — its "Contracts (frozen)" section is
+load-bearing; decisions in `docs/adr/`; work
 state in `docs/ROADMAP.md`; the PM session's operating manual in
 `docs/PM-BRIEF.md`.
 
@@ -15,9 +18,11 @@ memory; no session may depend on conversational context from a previous one.
 1. Start by reading `docs/ROADMAP.md`. The active phase is the first one with
    unchecked tasks. Pick the first unchecked task unless the user says
    otherwise.
-2. Before implementing a stateful or algorithmic piece (index schema,
-   checkpoint recovery, ingest ordering), propose the design in chat and wait
-   for confirmation.
+2. The stateful and algorithmic designs (index schema, checkpoint
+   recovery, ingest ordering, the read verification protocol) are already
+   frozen in SPEC "Contracts" — implement them as written, never re-open
+   them in chat. Only a genuinely new stateful design with no frozen
+   contract gets proposed and confirmed first.
 3. A task is done only when its verification criterion (stated inline in the
    roadmap) passes. Then check its box in `docs/ROADMAP.md`.
 4. Any decision that changes or extends an ADR gets written to `docs/adr/`
@@ -167,12 +172,12 @@ interpret charitably.
 - **Index apply and checkpoint advance commit in one Pebble batch.** A
   crash between them is unrepresentable; recovery is resume + idempotent
   re-apply. (ADR-003)
-- **Sidecar phases speak only the public Kafka protocol.** Reading the
-  broker's data directory from outside is closed permanently, not phased.
-  (ADR-004)
-- **The fork is a minimal, feature-flagged, rebaseable patch series** in
-  its own checkout, never vendored here. Flag off ⇒ byte-identical to
-  upstream, verified by test. (ADR-005)
+- **Only the public Kafka protocol, ever.** Reading the broker's data
+  directory is closed permanently. Fetch results pass the read
+  verification protocol — never trusted blindly. (ADR-004, SPEC
+  "Compaction model")
+- **Pure Go**: no CGo, franz-go as the only Kafka client, Pebble as the
+  only store. `CGO_ENABLED=0` must build. (ADR-002)
 - **Packages are importable libraries.** Public packages at the module
   root (`index/`, `ingest/`, `fetch/`, `server/`, `clock/`); `internal/`
   is wiring and glue; public packages never import `internal/`
@@ -187,17 +192,16 @@ interpret charitably.
   else, clarity wins.
 - No lock-free structure, pool, or in-place mutation lands without a pprof
   profile or benchmark proving the idiomatic version is the bottleneck.
-- The path-B decision is made by benchmark on record, never by taste.
-  (ADR-004)
 
 ## Testing discipline
 
 - Index semantics: property-based tests with `pgregory.net/rapid` — the
   naive-materialization equivalence, crash-recovery idempotence, replay
   determinism.
-- Phase-1 tests are **contract tests** (produce records → observe `Get`),
-  written to run unchanged against the phase-3 fork endpoint; coupling
-  them to sidecar internals loses their acceptance-suite value. (ADR-002)
+- Phase-1/2 tests are **contract tests** (produce records → observe
+  `Get`), black-box on purpose: they double as the acceptance suite for
+  the parked upstream plan. Coupling them to internals loses that value.
+  (ADR-002)
 - Integration tests need a real Redpanda: the dockerized dev loop
   (roadmap, phase 0) behind a build tag. No testcontainers in unit tests.
 - All time via a `Clock` interface; mock clock with `Advance()` in tests.
@@ -217,7 +221,9 @@ clock/              injectable Clock; sole production caller of time.Now/After
 cmd/rpkv/           main: wiring owner, and nothing but wiring
 internal/           this binary's flags, env, process glue
 
-docs/spikes/        recon spikes (phase 2: redpanda-storage/)
 docs/benchmarks/    numbers on record, with the commands that reproduce them
-redpanda/           (gitignored) the fork checkout — its own repo, ADR-005
 ```
+
+The recon spike and the in-broker plan live in `../redpanda/rpkv-plan/`
+(branch `rpkv-plan` of the fork checkout), resumed only when phase 3's
+artifacts exist. Nothing in this repo depends on that checkout.

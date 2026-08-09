@@ -29,8 +29,12 @@ the contract, and they hold even if that prompt forgets to repeat them.
    implementer that writes its own absolution has routed around the gate.
 
 Beyond the contract, the repo's own rules bind you: read `CLAUDE.md` for
-the invariants (single binary, pure core, everything through the event log,
-public packages at the module root and never importing `internal/`) and
+the invariants (no value ever stored or cached, pure Go with franz-go and
+Pebble only, index apply + checkpoint in one batch, fetches verified, the
+broker's data directory never read, public packages at the module root and
+never importing `internal/`) and `docs/SPEC.md` "Contracts (frozen)" for
+the exact signatures and encodings — frozen means implemented as written,
+never re-decided and
 `docs/ROADMAP.md` for where the block sits. Before implementing a stateful
 or algorithmic piece, the design is agreed in chat first — if the spec you
 were handed has not closed a stateful decision, say so rather than deciding
