@@ -21,7 +21,7 @@ never silently becomes `[x]`.
 - [x] `CLAUDE.md`, `docs/SPEC.md` with frozen contracts, `docs/adr/`,
       `docs/PM-BRIEF.md`. Recon spike done and parked with the upstream
       plan in `../redpanda/rpkv-plan/`.
-- [ ] **`clock/`: the Clock interface.** `Clock` with `Now() time.Time`
+- [x] **`clock/`: the Clock interface.** `Clock` with `Now() time.Time`
       and `After(d time.Duration) <-chan time.Time`; `NewSystemClock()`;
       mock in `clock/clocktest/` with `Advance(d)`. Table-driven tests.
       Verification: `just check` exits 0 with the toolchain installed
