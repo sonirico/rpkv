@@ -10,6 +10,12 @@ golines_version := "v0.13.0"
 
 local_prefix := "github.com/sonirico/rpkv"
 
+# Pin the dev-loop broker for the same reason as the tool versions above:
+# `redpanda-up` and CI must agree on exactly which image is under test.
+redpanda_image := "docker.redpanda.com/redpandadata/redpanda:v26.1.15"
+redpanda_container := "rpkv-redpanda"
+redpanda_port := "19092"
+
 # Every hand-written Go file. .claude/ is excluded: agent worktrees are
 # gitignored copies of this same repo; formatting them reaches outside the
 # checkout and does nothing useful.
@@ -89,6 +95,58 @@ test:
 
 test-race:
     go test ./... -race
+
+# Start the single-node dev-loop Redpanda container: already running is a
+# no-op, stopped is restarted in place (never removed+recreated), absent is
+# created. Existence/status comes from `docker ps` filters (non-empty output
+# is the whole signal) rather than `docker inspect | jq`, so the recipe has
+# no jq dependency and no failure mode where a missing jq silently reads as
+# "container absent". Blocks until `rpk cluster health` reports healthy,
+# because the roadmap chains `just redpanda-up && just test-integration`
+# directly - a recipe that returns before the broker accepts connections
+# would make that chain flaky instead of failing loudly here.
+redpanda-up:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ -n "$(docker ps -q --filter name=^{{ redpanda_container }}$ --filter status=running)" ]]; then
+        : # already running - no-op
+    elif [[ -n "$(docker ps -aq --filter name=^{{ redpanda_container }}$)" ]]; then
+        docker start {{ redpanda_container }} >/dev/null
+    else
+        docker run -d --name {{ redpanda_container }} \
+            -p {{ redpanda_port }}:{{ redpanda_port }} \
+            {{ redpanda_image }} \
+            redpanda start --mode dev-container --smp 1 --overprovisioned \
+            --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:{{ redpanda_port }} \
+            --advertise-kafka-addr internal://{{ redpanda_container }}:9092,external://localhost:{{ redpanda_port }} \
+            >/dev/null
+    fi
+    for _ in $(seq 1 60); do
+        if docker exec {{ redpanda_container }} rpk cluster health 2>/dev/null | grep -q "Healthy:.*true"; then
+            echo "redpanda-up: broker ready on localhost:{{ redpanda_port }}"
+            exit 0
+        fi
+        sleep 1
+    done
+    echo "redpanda-up: broker did not report healthy within 60s"
+    exit 1
+
+# Remove the dev-loop container; idempotent, no error if it is already gone.
+# Absence is checked with `docker ps -aq` up front so the only case
+# tolerated is "nothing to remove" - a genuine `docker rm` failure (daemon
+# down, permissions) still fails the recipe instead of reporting success.
+redpanda-down:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ -z "$(docker ps -aq --filter name=^{{ redpanda_container }}$)" ]]; then
+        exit 0
+    fi
+    docker rm -f {{ redpanda_container }} >/dev/null
+
+# Kept independent of redpanda-up as a just dependency: the roadmap chains
+# them explicitly with `&&`, so this recipe only runs the tests.
+test-integration:
+    go test -tags integration ./... -race
 
 # Public packages must not import internal/ (ADR-002's layout rule).
 boundaries-check:
