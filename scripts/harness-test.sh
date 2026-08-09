@@ -6,7 +6,7 @@
 # with an uncommitted production file in it, a mutation "caught" by a test
 # that never compiled, a formatter check that passed because the formatter
 # was absent. Each was demonstrated with a red test typed at a prompt, and
-# each of those tests was then thrown away — which is the same mistake in a
+# each of those tests was then thrown away - which is the same mistake in a
 # different place. A check that lives only in a transcript does not exist,
 # and the gates are the one part of this repo where a silent failure is
 # indistinguishable from success.
@@ -39,12 +39,12 @@ bad() {
     fi
 }
 
-# expect_exit <wanted> — assert on the exit code of the last `run` call.
+# expect_exit <wanted> - assert on the exit code of the last `run` call.
 expect_exit() {
     if [[ "$rc" == "$1" ]]; then ok; else bad "expected exit $1, got $rc"; fi
 }
 
-# expect_out <substring> — assert the last `run` said something specific.
+# expect_out <substring> - assert the last `run` said something specific.
 # A gate that refuses for the wrong reason is a gate that will refuse the
 # wrong thing later, so the message is part of the contract.
 expect_out() {
@@ -58,7 +58,7 @@ run() {
     rc=$?
 }
 
-# new_repo <name> — a throwaway repository with one commit on main.
+# new_repo <name> - a throwaway repository with one commit on main.
 new_repo() {
     local dir="${work}/$1"
     mkdir -p "$dir"
@@ -72,7 +72,7 @@ new_repo() {
     echo "$dir"
 }
 
-# new_repo_with_upstream <name> — the same, plus a bare remote it is level
+# new_repo_with_upstream <name> - the same, plus a bare remote it is level
 # with, so `@{upstream}` resolves the way quality-pass-gate.sh needs.
 new_repo_with_upstream() {
     local dir bare
@@ -99,7 +99,7 @@ new_go_module() {
     echo "$dir"
 }
 
-# new_go_module_with_internal_import <name> — a throwaway module whose one
+# new_go_module_with_internal_import <name> - a throwaway module whose one
 # public package, pub, imports the module's own internal/priv. The fixture
 # check-boundaries.sh is for: a public package reaching into internal/.
 new_go_module_with_internal_import() {
@@ -118,7 +118,7 @@ new_go_module_with_internal_import() {
     echo "$dir"
 }
 
-# new_repo_with_origin_head <name> — the same as new_repo_with_upstream,
+# new_repo_with_origin_head <name> - the same as new_repo_with_upstream,
 # plus refs/remotes/origin/HEAD set explicitly. `git push -u` does not set
 # it (only `git clone` or an explicit `remote set-head` do), and
 # assertion-counts.sh resolves origin/HEAD directly rather than via
@@ -144,7 +144,7 @@ write_receipt() {
     printf '%s' "$json" > "${dir}/.claude/receipts/${sha}/quality-pass.json"
 }
 
-# Adds an unpushed commit touching a .go file — the condition that makes the
+# Adds an unpushed commit touching a .go file - the condition that makes the
 # gate care at all.
 add_unpushed_go_commit() {
     local dir="$1"
@@ -163,7 +163,7 @@ expect_out "worktree is dirty"
 
 # The defect: `git diff --quiet` does not report untracked files, so a new
 # production .go file compiled into `just check` and passed, while the block
-# under review — a commit range — did not contain it.
+# under review - a commit range - did not contain it.
 repo="$(new_repo qp_untracked)"
 printf 'package m\n\nfunc Leftover() {}\n' > "${repo}/leftover.go"
 run "quality-pass refuses an untracked .go file" bash -c "cd '$repo' && bash '${root}/scripts/quality-pass.sh'"
@@ -242,7 +242,7 @@ run "gate allows 0% coverage with a written acceptance" gate "$repo"
 expect_exit 0
 
 # Production Go with no measurement at all is the case that must never read
-# as a pass — silence here once meant the script had died writing nothing.
+# as a pass - silence here once meant the script had died writing nothing.
 repo="$(new_repo_with_upstream gate_unmeasured)"
 add_unpushed_go_commit "$repo"
 sha="$(git -C "$repo" rev-parse HEAD)"
@@ -279,7 +279,7 @@ remote_sha="$(git -C "$repo" rev-parse origin/main)"
 run "pre-push blocks a Go push with no receipt" \
     push_gate "$repo" "refs/heads/main ${local_sha} refs/heads/main ${remote_sha}"
 expect_exit 1
-# "no quality-pass receipt at" is this branch's own wording — distinct from
+# "no quality-pass receipt at" is this branch's own wording - distinct from
 # the "is not valid JSON" message a missing file would also produce via the
 # jq check further down, which happens to share the same receipt path.
 expect_out "no quality-pass receipt at .claude/receipts/${local_sha}/quality-pass.json"
@@ -429,6 +429,24 @@ run "check-boundaries is clean once the internal import is removed" \
     bash "${root}/scripts/check-boundaries.sh" "$mod"
 expect_exit 0
 
+echo "harness-test: check-ascii.sh"
+
+repo="$(new_repo ascii_violation)"
+printf 'note: the fix is done - now go\n' > "${repo}/NOTES.md"
+git -C "$repo" add -A
+git -C "$repo" commit -qm "add ascii notes"
+run "check-ascii is clean on an ASCII-only repo" \
+    bash "${root}/scripts/check-ascii.sh" "$repo"
+expect_exit 0
+
+printf 'note: the fix is done \xe2\x80\x94 now go\n' > "${repo}/NOTES.md"
+git -C "$repo" add -A
+git -C "$repo" commit -qm "add em dash"
+run "check-ascii reports a non-ASCII character in a tracked file" \
+    bash "${root}/scripts/check-ascii.sh" "$repo"
+expect_exit 1
+expect_out "NOTES.md"
+
 echo "harness-test: verify-receipts.sh"
 
 repo="$(new_repo vr_missing)"
@@ -458,7 +476,7 @@ run "verify-receipts passes a check failure forgiven by check.accepted" \
     bash -c "cd '$repo' && bash '${root}/scripts/verify-receipts.sh'"
 expect_exit 0
 expect_out "mutation receipts: 0"
-expect_out "none — most blocks have none"
+expect_out "none - most blocks have none"
 
 repo="$(new_repo vr_mut_undetected)"
 sha="$(git -C "$repo" rev-parse HEAD)"

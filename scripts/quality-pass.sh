@@ -20,8 +20,8 @@
 # suite passes under -race, and what the coverage of every function in the
 # changed production files actually is. None of that needs a reviewer's
 # good faith. The LLM review keeps its value for the things measurement
-# cannot judge — is the blast radius right, is this test asserting what its
-# name claims — but it is testimony, is labelled as such, and no longer
+# cannot judge - is the blast radius right, is this test asserting what its
+# name claims - but it is testimony, is labelled as such, and no longer
 # gates anything on its own say-so.
 set -euo pipefail
 
@@ -29,7 +29,7 @@ cd "$(git rev-parse --show-toplevel)"
 
 # Untracked files count as dirty, which `git diff` does not report. A new
 # production .go file left uncommitted still compiles into its package, so
-# `just check` builds and tests it and passes — while the block under review,
+# `just check` builds and tests it and passes - while the block under review,
 # which is a commit range, does not contain it. The receipt would be green
 # about a tree nobody else can reproduce, and the push would break the build
 # for every other clone. Ignored paths are excluded by default, which is why
@@ -55,7 +55,7 @@ mkdir -p "$receipt_dir"
 # is the same definition dev:iterate's `branch` scope uses.
 base_ref="origin/HEAD"
 if ! git rev-parse --verify --quiet "$base_ref" >/dev/null; then
-    echo "quality-pass: $base_ref is missing — run 'git remote set-head origin main' once per clone" >&2
+    echo "quality-pass: $base_ref is missing - run 'git remote set-head origin main' once per clone" >&2
     exit 1
 fi
 merge_base="$(git merge-base "$base_ref" HEAD)"
@@ -102,7 +102,7 @@ if [[ "$tests_only" == "false" ]]; then
         coverage_reason="measured over the functions defined in the changed production files"
 
         # `go tool cover -func` emits "<module>/<file>:<line>:\t<func>\t<pct>%"
-        # — an import path, not a repo-relative one, so the changed files
+        # - an import path, not a repo-relative one, so the changed files
         # are matched with the module prefix in front. Keep only those, so
         # the receipt describes this block rather than the repo's overall
         # average: an average is exactly the number that hides a new
@@ -111,7 +111,7 @@ if [[ "$tests_only" == "false" ]]; then
         pattern="$(printf "${module}/%s\n" "${production_go[@]}" | paste -sd'|' -)"
         matched="$(grep -E "^($pattern):" "$cover_func" || true)"
         if [[ -z "$matched" ]]; then
-            # Not "everything is covered" — nothing was measured. Silence
+            # Not "everything is covered" - nothing was measured. Silence
             # here once meant the script died mid-way writing no receipt at
             # all; a block that reaches the gate unmeasured must say so.
             coverage_measured=false
@@ -166,7 +166,7 @@ jq -n \
 echo "quality-pass: receipt at ${receipt_dir}/quality-pass.json"
 
 if [[ $check_exit -ne 0 ]]; then
-    echo "quality-pass: 'just check' failed (exit ${check_exit}) — see ${check_log}" >&2
+    echo "quality-pass: 'just check' failed (exit ${check_exit}) - see ${check_log}" >&2
     exit 1
 fi
 

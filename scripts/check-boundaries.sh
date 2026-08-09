@@ -2,7 +2,7 @@
 # Enforces ADR-009's public/internal split as code: every package at the
 # module root except ./cmd/..., ./internal/... and anything under docs/ is
 # a public package a third party can embed, and none of them may depend on
-# anything under this module's own internal/ — an embedder cannot name a
+# anything under this module's own internal/ - an embedder cannot name a
 # type it imports. Roadmap task L1's verification criterion
 # ("go list -deps ./engine | grep rpkv/internal" empty) generalised to
 # every public package, so the next one that reaches into internal/ fails

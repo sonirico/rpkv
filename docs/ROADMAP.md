@@ -2,10 +2,10 @@
 
 Phases are gated by exit criteria, never by calendar. The active phase is the
 first with unchecked tasks. Tasks are self-contained: package, contract,
-verification — the contract details live in `docs/SPEC.md` "Contracts
-(frozen)", referenced as SPEC§. **Nothing in this file is a proposal**: a
+verification - the contract details live in `docs/SPEC.md` "Contracts
+(frozen)", referenced as SPEC section. **Nothing in this file is a proposal**: a
 session's job is to implement the named task against its frozen contract,
-not to re-decide it. Sessions check boxes here — this file is the single
+not to re-decide it. Sessions check boxes here - this file is the single
 source of truth for project state.
 
 `[x]` done, criterion met. `[ ]` not done. `[~]` **blocked**: implemented
@@ -13,7 +13,7 @@ but its verification criterion cannot be met with what this project has
 access to; the reason is written into the task, later tasks proceed, and it
 never silently becomes `[x]`.
 
-## Phase 0 — Foundations
+## Phase 0 - Foundations
 
 - [x] `git init`, `go mod init github.com/sonirico/rpkv`
 - [x] Harness vendored from elsewhere (scripts, hooks, agents, justfile);
@@ -38,52 +38,52 @@ never silently becomes `[x]`.
 - [ ] CI: GitHub Actions running `just setup` + `just check`.
       Verification: green run. (Pends on first push to a remote.)
 
-## Phase 1 — Core (contracts SPEC§; every package lands with its tests)
+## Phase 1 - Core (contracts SPEC section; every package lands with its tests)
 
-- [ ] **`index/`** per SPEC§`index/` and SPEC§Pebble-layout, verbatim
+- [ ] **`index/`** per SPEC section `index/` and SPEC section Pebble-layout, verbatim
       signatures. Includes `Close`.
-      Verification: property test (`pgregory.net/rapid`) — arbitrary
-      entry sequences ≡ naive map materialization at same checkpoints;
-      atomicity test — reopen after simulated crash between polls, no
+      Verification: property test (`pgregory.net/rapid`) - arbitrary
+      entry sequences == naive map materialization at same checkpoints;
+      atomicity test - reopen after simulated crash between polls, no
       checkpoint without its entries; tombstone test; `Checkpoint` -1
       semantics; unit-only, no broker.
-- [ ] **`ingest/`** per SPEC§`ingest/`: partition assignment without
+- [ ] **`ingest/`** per SPEC section `ingest/`: partition assignment without
       groups, resume at checkpoint+1 or log start, one atomic `Apply` per
       poll per partition, null-key skip counted.
-      Verification: integration test (dev loop) — produce N keys across
+      Verification: integration test (dev loop) - produce N keys across
       partitions, kill ingester mid-stream, restart, produce more; final
-      index ≡ naive materialization; no broker-side group exists
+      index == naive materialization; no broker-side group exists
       (`rpk group list` empty).
-- [ ] **`fetch/`** per SPEC§`fetch/` implementing SPEC "Compaction model"
+- [ ] **`fetch/`** per SPEC section `fetch/` implementing SPEC "Compaction model"
       mechanism 2 verbatim (batch-level record selection at the exact
       offset; `Superseded`/`Evicted` classification).
-      Verification: integration tests — (a) every produced key fetched
+      Verification: integration tests - (a) every produced key fetched
       byte-identical via its pointer; (b) *superseded*: produce v2 for a
       key, force compaction (topic with aggressive
       `max.compaction.lag.ms`/segment size), fetch with the stale v1
-      pointer → `Superseded=true`; (c) *evicted*: delete-retention topic,
-      pointer below log start → `Evicted=true`.
-- [ ] **`server/`** per SPEC§`server/`: routes, status codes, headers,
+      pointer -> `Superseded=true`; (c) *evicted*: delete-retention topic,
+      pointer below log start -> `Evicted=true`.
+- [ ] **`server/`** per SPEC section `server/`: routes, status codes, headers,
       2s supersede budget through `clock.Clock`.
       Verification: unit tests with fake index/fetcher covering every row
       of the SPEC response table, including supersede-then-resolve and
       supersede-then-503 via mock clock `Advance`; no `time.Sleep`
       anywhere.
-- [ ] **`cmd/rpkv` + `internal/`** wiring per SPEC§configuration —
+- [ ] **`cmd/rpkv` + `internal/`** wiring per SPEC section configuration -
       wiring owner only, constructors receive dependencies.
-      Verification: end-to-end integration test — start Redpanda, start
+      Verification: end-to-end integration test - start Redpanda, start
       rpkv, produce, `GET` returns the value with correct headers;
-      tombstone → 404; `CGO_ENABLED=0 go build ./...` succeeds and is
+      tombstone -> 404; `CGO_ENABLED=0 go build ./...` succeeds and is
       asserted in CI.
 
-## Phase 2 — Resilience proof (the compaction claims become tests)
+## Phase 2 - Resilience proof (the compaction claims become tests)
 
 - [ ] **Compaction contract suite.** Long-running integration test:
       compacted topic, thousands of overwrites across keys, compaction
       forced repeatedly, ingester restarted twice mid-run; at each
       quiescent point every live key `GET`s its latest value and every
       tombstoned key 404s. This is the suite the parked upstream plan
-      reuses as acceptance — keep it black-box (produce → observe HTTP).
+      reuses as acceptance - keep it black-box (produce -> observe HTTP).
 - [ ] **Rebuild convergence.** Delete the Pebble dir after the suite
       above; re-ingest from the (compacted) log; assert the rebuilt index
       state equals the pre-delete state.
@@ -92,12 +92,12 @@ never silently becomes `[x]`.
       invariants hold (no checkpoint ahead of applied entries; property
       re-check against naive consumer).
 
-## Phase 3 — Numbers and release
+## Phase 3 - Numbers and release
 
 - [ ] **Benchmarks on record** under `docs/benchmarks/` with reproduce
       commands: read p50/p99 (local segments), read latency for
       tiered-storage-evicted keys (or `[~]` with the exact blocker if no
-      object store is available locally — MinIO is the unblock), index
+      object store is available locally - MinIO is the unblock), index
       rebuild rate (keys/s), index bytes per key at 10^6 keys.
 - [ ] **README for release**: what it is, the honest trade-off, quickstart
       against the dev loop, the compaction-resilience story, the
@@ -107,4 +107,4 @@ never silently becomes `[x]`.
 
 Phase 3's artifacts (contract suite + benchmarks) are the resume gate for
 `../redpanda/rpkv-plan/UPSTREAM-PLAN.md`. When they exist, that plan wakes
-up — over there, not here.
+up - over there, not here.

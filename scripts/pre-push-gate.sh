@@ -11,7 +11,7 @@
 # This is failure #1's shape from CLAUDE.md's ledger again, one layer
 # closer to the actual event: a rule that says "run the pass before
 # pushing" is not enforced by anyone remembering it. This is the structural
-# fix at the one point a push cannot walk around — git refuses to complete
+# fix at the one point a push cannot walk around - git refuses to complete
 # the push if this hook exits non-zero.
 #
 # Git's protocol: invoked as `pre-push <remote-name> <remote-url>`, and on
@@ -42,8 +42,8 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     if [[ "$remote_sha" == "$zero_sha" ]]; then
         # A new branch, with nothing on the remote side to diff against.
         # Diffing the whole local history against the empty tree would flag
-        # every Go file the branch has ever touched — including everything
-        # already reviewed and pushed on other branches — as "new" here, so
+        # every Go file the branch has ever touched - including everything
+        # already reviewed and pushed on other branches - as "new" here, so
         # scope to the commits this push actually introduces: those not yet
         # reachable from any remote-tracking ref. The range for the Go-file
         # check is then from the fork point (the parent of the oldest such
@@ -71,8 +71,8 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 
     # The receipt is keyed to the *tip* sha being pushed, not to every
     # commit in the range. A push of several commits where only the tip
-    # carries a receipt is the normal, correct case — the block is reviewed
-    # as a whole and the receipt describes the final tree — so this does
+    # carries a receipt is the normal, correct case - the block is reviewed
+    # as a whole and the receipt describes the final tree - so this does
     # not require one receipt per commit, only one that matches what is
     # actually landing on the remote.
     receipt_dir=".claude/receipts/${local_sha}"
@@ -88,7 +88,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     fi
 
     if ! jq -e . "$receipt" >/dev/null 2>&1; then
-        echo "pre-push: ${receipt} is not valid JSON — regenerate it with scripts/quality-pass.sh" >&2
+        echo "pre-push: ${receipt} is not valid JSON - regenerate it with scripts/quality-pass.sh" >&2
         blocked=1
         continue
     fi
@@ -97,7 +97,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     if [[ "$receipt_sha" != "$local_sha" ]]; then
         {
             echo "pre-push: ${receipt} records sha ${receipt_sha}, but ${local_ref} is pushing ${local_sha}"
-            echo "  the tree moved after the pass ran — re-run scripts/quality-pass.sh"
+            echo "  the tree moved after the pass ran - re-run scripts/quality-pass.sh"
         } >&2
         blocked=1
         continue
@@ -106,7 +106,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     check_exit="$(jq -r '.check.exit_code // 1' "$receipt")"
     if [[ "$check_exit" != "0" ]] && [[ ! -s "${receipt_dir}/check.accepted" ]]; then
         {
-            echo "pre-push: quality-pass receipt records 'just check' exit ${check_exit} — the suite does not pass"
+            echo "pre-push: quality-pass receipt records 'just check' exit ${check_exit} - the suite does not pass"
             echo "  fix it, or record why it is acceptable in ${receipt_dir}/check.accepted"
         } >&2
         blocked=1
@@ -137,7 +137,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 done
 
 if (( blocked )); then
-    echo "pre-push: a measured quality-pass failure is not a green pass — see CLAUDE.md \"Subagent contract\"." >&2
+    echo "pre-push: a measured quality-pass failure is not a green pass - see CLAUDE.md \"Subagent contract\"." >&2
     exit 1
 fi
 

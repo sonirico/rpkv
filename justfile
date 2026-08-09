@@ -27,7 +27,7 @@ setup: && install-hooks
     @echo "toolchain ready"
 
 # Point git at the tracked githooks/ directory instead of the untracked,
-# per-clone .git/hooks/ — a hook installed there is invisible to `git
+# per-clone .git/hooks/ - a hook installed there is invisible to `git
 # clone` and has to be reinstalled by hand on every checkout, which is
 # exactly the kind of step CLAUDE.md's ledger says gets forgotten.
 # core.hooksPath replaces the *entire* hooks directory, so warn about any
@@ -39,7 +39,7 @@ install-hooks:
     if [[ -n "$existing" ]]; then
         echo "install-hooks: .git/hooks has untracked hook(s) that core.hooksPath will bypass:"
         echo "$existing" | sed 's/^/  /'
-        echo "  (githooks/ takes over from here — pre-push in particular — move anything you still need into githooks/)"
+        echo "  (githooks/ takes over from here - pre-push in particular - move anything you still need into githooks/)"
     fi
     git config core.hooksPath githooks
     echo "install-hooks: core.hooksPath -> githooks/ (pre-push gate active)"
@@ -55,14 +55,14 @@ fmt-check:
     #!/usr/bin/env bash
     set -uo pipefail
     # A formatter that is not installed prints nothing to stdout, and the
-    # emptiness of `unformatted` is the whole pass criterion — so a missing
+    # emptiness of `unformatted` is the whole pass criterion - so a missing
     # tool read as "formatting clean" and exited 0. `just check`'s exit code
     # is what scripts/quality-pass.sh records as evidence, which makes a green
     # that measured nothing worse here than a red. Assert the tools first;
     # `just setup` installs them at the pins above.
     for tool in gofmt goimports golines; do
         if ! command -v "$tool" >/dev/null 2>&1; then
-            echo "fmt-check: ${tool} is not installed — run 'just setup'"
+            echo "fmt-check: ${tool} is not installed - run 'just setup'"
             exit 1
         fi
     done
@@ -94,20 +94,24 @@ test-race:
 boundaries-check:
     bash scripts/check-boundaries.sh .
 
+# No non-ASCII characters in any tracked file (docs, scripts, comments).
+ascii-check:
+    bash scripts/check-ascii.sh .
+
 # The gates are themselves tested, first, so a green from any of them
 # means something. Every case in the suite is a defect that shipped.
 harness-test:
     bash scripts/harness-test.sh
 
-check: harness-test fmt-check vet lint build boundaries-check test-race
+check: harness-test ascii-check fmt-check vet lint build boundaries-check test-race
 
 # The gate. Writes .claude/receipts/<sha>/quality-pass.json.
 quality-pass:
     bash scripts/quality-pass.sh
 
 # Operator ritual, not a check() step: verifies .claude/receipts/<sha>/
-# deterministically — quality-pass.json's sha and exit codes, .accepted
-# files, mutation-*.json — instead of re-deriving the same jq one-liner
+# deterministically - quality-pass.json's sha and exit codes, .accepted
+# files, mutation-*.json - instead of re-deriving the same jq one-liner
 # every block.
 verify-receipts sha="":
     bash scripts/verify-receipts.sh {{ sha }}

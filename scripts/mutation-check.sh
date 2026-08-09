@@ -2,10 +2,10 @@
 # Applies a single mutation to a file, proves the target test catches it,
 # restores the file byte-identical, and writes a receipt. The receipt is
 # the point: a mutation check nobody can re-run is worth nothing (see
-# CLAUDE.md's "Subagent contract"), so this script — not an agent narrating
-# a re-run — is the thing that produces the evidence on disk.
+# CLAUDE.md's "Subagent contract"), so this script - not an agent narrating
+# a re-run - is the thing that produces the evidence on disk.
 #
-# Restore is always `cp` from the backup, never `git checkout` — a prior
+# Restore is always `cp` from the backup, never `git checkout` - a prior
 # incident lost uncommitted work that way.
 set -euo pipefail
 
@@ -67,7 +67,7 @@ sed -i "$sed_expr" "$file"
 
 if cmp -s "$backup_file" "$file"; then
     restore
-    echo "mutation-check: sed expression did not change $file — mutation did not apply" >&2
+    echo "mutation-check: sed expression did not change $file - mutation did not apply" >&2
     exit 1
 fi
 
@@ -83,7 +83,7 @@ set -e
 if [[ $build_exit -ne 0 ]]; then
     restore
     {
-        echo "mutation-check: the mutation does not compile — that is a broken edit, not a caught bug"
+        echo "mutation-check: the mutation does not compile - that is a broken edit, not a caught bug"
         echo "$build_output"
     } >&2
     exit 1
@@ -130,9 +130,9 @@ jq -n \
     >"$receipt_file"
 
 if [[ "$mutation_detected" != "true" ]]; then
-    echo "mutation-check: test did not fail under mutation (exit $test_exit_code) — mutation not detected" >&2
+    echo "mutation-check: test did not fail under mutation (exit $test_exit_code) - mutation not detected" >&2
     exit 1
 fi
 
-echo "mutation-check: OK — receipt at $receipt_file"
+echo "mutation-check: OK - receipt at $receipt_file"
 exit 0
