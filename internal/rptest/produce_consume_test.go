@@ -89,6 +89,9 @@ func TestProduceConsume(t *testing.T) {
 	fx.client.AddConsumeTopics(fx.topic)
 
 	var got *kgo.Record
+	// Bounded by ctx.Err() rather than a fixed iteration count: the
+	// deadline is the hang detector, so a record that never arrives fails
+	// the test instead of spinning forever.
 	for got == nil {
 		require.NoError(t, ctx.Err(), "timed out waiting to consume the produced record")
 
