@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Thin shim. `git config core.hooksPath` points at this directory (see
+# `just install-hooks`), and the real gate lives in
+# scripts/pre-push-gate.sh — kept out of here so scripts/harness-test.sh can
+# invoke it directly, feeding it stdin the way git does, without going
+# through git's hook machinery at all.
+set -euo pipefail
+exec "$(git rev-parse --show-toplevel)/scripts/pre-push-gate.sh" "$@"
