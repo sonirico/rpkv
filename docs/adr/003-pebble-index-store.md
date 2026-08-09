@@ -14,9 +14,8 @@ written in the same batch.
 - **Write-optimized LSM matches the workload.** Index maintenance is an
   append-heavy stream of small upserts — the exact shape LSMs are built
   for. Reads are point lookups, Pebble's cheapest operation.
-- **Embedded, pure Go, no CGo.** In-process with the sidecar (and with any
-  Go control plane the fork grows later); no external service to operate;
-  cross-compiles cleanly. RocksDB would buy nothing here but a CGo
+- **Embedded, pure Go, no CGo.** In-process with the sidecar; no external
+  service to operate; cross-compiles cleanly. RocksDB would buy nothing here but a CGo
   dependency.
 - **Atomic batches give the checkpoint invariant for free.** SPEC requires
   index+checkpoint atomicity; `pebble.Batch` is precisely that primitive.
@@ -25,11 +24,11 @@ written in the same batch.
 
 ## Shape of the keyspace
 
-Decided at implementation time in phase 1 and recorded here when it
-settles; the constraints it must satisfy are: per-topic isolation, binary
-keys verbatim (no escaping that breaks ordering), checkpoint entries
-adjacent enough to scan at startup, and room for the phase-4 byte-position
-extension without rewriting existing entries.
+Constraints it satisfies: per-topic isolation, binary
+keys verbatim (no escaping that breaks ordering), and checkpoint entries
+adjacent enough to scan at startup. The layout is now frozen in SPEC
+"Contracts" (one DB per topic; `0x01‖key` pointers, `0x02‖partition`
+checkpoints, big-endian fixed-width values).
 
 ## Reversal criterion
 

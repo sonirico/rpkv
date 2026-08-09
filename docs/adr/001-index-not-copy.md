@@ -34,8 +34,7 @@ rpkv; that is Kafka Streams' quadrant and we do not contest it.
 
 ## Reversal criterion
 
-If phase 1 benchmarks show path-A read latency makes the product unusable
-for its target workload (large values, modest read rates) *and* phase 4 is
-shown infeasible in the recon spike, the founding bet is wrong and the
-project pivots or stops. It does not quietly grow a value cache — that is
+If the phase-3 benchmarks show fetch-path read latency makes the product
+unusable for its target workload (large values, modest read rates), the
+founding bet is wrong and the project pivots or stops. It does not quietly grow a value cache — that is
 the one move this ADR forbids (SPEC "Non-goals").
