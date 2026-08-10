@@ -267,18 +267,20 @@ func TestIngesterCrashRestartConvergence(t *testing.T) {
 		runErr1 <- ingester1.Run(ctx1)
 	}()
 
-	require.Eventually(t, func() bool {
-		for p := int32(0); p < testPartitions; p++ {
-			checkpoint, err := ix1.Checkpoint(p)
-			if err != nil {
-				return false
+	t.Run("checkpoints converge", func(t *testing.T) {
+		require.Eventually(t, func() bool {
+			for p := int32(0); p < testPartitions; p++ {
+				checkpoint, err := ix1.Checkpoint(p)
+				if err != nil {
+					return false
+				}
+				if checkpoint > -1 {
+					return true
+				}
 			}
-			if checkpoint > -1 {
-				return true
-			}
-		}
-		return false
-	}, testEventually, testEventuallyTick, "no partition checkpoint advanced past -1")
+			return false
+		}, testEventually, testEventuallyTick, "no partition checkpoint advanced past -1")
+	})
 
 	cancel1()
 	err := <-runErr1
@@ -302,40 +304,48 @@ func TestIngesterCrashRestartConvergence(t *testing.T) {
 		runErr2 <- ingester2.Run(ctx2)
 	}()
 
-	wantLastOffsets := lastOffsetsByPartition(wave1, wave2)
-	require.Eventually(t, func() bool {
-		for p, wantOffset := range wantLastOffsets {
-			got, err := ix2.Checkpoint(p)
-			if err != nil || got != wantOffset {
-				return false
+	t.Run("checkpoints converge after restart", func(t *testing.T) {
+		wantLastOffsets := lastOffsetsByPartition(wave1, wave2)
+		require.Eventually(t, func() bool {
+			for p, wantOffset := range wantLastOffsets {
+				got, err := ix2.Checkpoint(p)
+				if err != nil || got != wantOffset {
+					return false
+				}
 			}
-		}
-		return true
-	}, testEventually, testEventuallyTick, "partitions did not converge to their last produced offsets")
+			return true
+		}, testEventually, testEventuallyTick, "partitions did not converge to their last produced offsets")
+	})
 
 	cancel2()
 	err = <-runErr2
 	require.True(t, errors.Is(err, context.Canceled), "want context.Canceled, got %v", err)
 
-	want := materializeNaive(wave1, wave2)
-	for key, wantLookup := range want {
-		got, err := ix2.Get([]byte(key))
-		require.NoError(t, err)
-		assert.Equal(t, wantLookup, got, "key %q", key)
-	}
+	t.Run("materialization matches naive model", func(t *testing.T) {
+		want := materializeNaive(wave1, wave2)
+		for key, wantLookup := range want {
+			got, err := ix2.Get([]byte(key))
+			require.NoError(t, err)
+			assert.Equal(t, wantLookup, got, "key %q", key)
+		}
+	})
 
-	totalSkipped := ingester1.SkippedNullKeys() + ingester2.SkippedNullKeys()
-	assert.GreaterOrEqual(t, totalSkipped, int64(2))
+	t.Run("null keys are counted", func(t *testing.T) {
+		totalSkipped := ingester1.SkippedNullKeys() + ingester2.SkippedNullKeys()
+		assert.GreaterOrEqual(t, totalSkipped, int64(2))
+	})
 
-	groupListCtx, groupListCancel := context.WithTimeout(context.Background(), testTimeout)
-	defer groupListCancel()
+	t.Run("consumer group is cleaned up", func(t *testing.T) {
+		groupListCtx, groupListCancel := context.WithTimeout(context.Background(), testTimeout)
+		defer groupListCancel()
 
-	out, err := exec.CommandContext(
-		groupListCtx, "docker", "exec", "rpkv-redpanda", "rpk", "group", "list",
-	).CombinedOutput()
-	require.NoError(t, err, "rpk group list: %s", out)
+		out, err := exec.CommandContext(
+			groupListCtx, "docker", "exec", "rpkv-redpanda", "rpk", "group", "list",
+		).CombinedOutput()
+		require.NoError(t, err, "rpk group list: %s", out)
 
-	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-	require.NotEmpty(t, lines)
-	assert.Len(t, lines, 1, "expected only the header row, got: %s", out)
+		lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+		require.NotEmpty(t, lines)
+		assert.Len(t, lines, 1, "expected only the header row, got: %s", out)
+	})
 }
