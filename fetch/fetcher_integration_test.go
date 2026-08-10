@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os/exec"
 	"testing"
 	"time"
 
@@ -85,15 +84,6 @@ func newTestFetchFixture(
 			require.NoError(t, r.Err)
 		}
 	})
-
-	configCtx, configCancel := context.WithTimeout(context.Background(), testTimeout)
-	defer configCancel()
-
-	out, err := exec.CommandContext(
-		configCtx, "docker", "exec", "rpkv-redpanda",
-		"rpk", "cluster", "config", "set", "log_compaction_interval_ms", "500",
-	).CombinedOutput()
-	require.NoError(t, err, "rpk cluster config set: %s", out)
 
 	db, err := pebble.Open(t.TempDir(), &pebble.Options{})
 	require.NoError(t, err)

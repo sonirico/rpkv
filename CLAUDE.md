@@ -202,8 +202,10 @@ interpret charitably.
   `Get`), black-box on purpose: they double as the acceptance suite for
   the parked upstream plan. Coupling them to internals loses that value.
   (ADR-002)
-- Integration tests need a real Redpanda: the dockerized dev loop
-  (roadmap, phase 0) behind a build tag. No testcontainers in unit tests.
+- Integration tests need a real Redpanda: self-provisioned per test
+  binary via `internal/rptest` + `vago/testit/redpanda` (ADR-006), behind
+  the `integration` build tag. Broker definition (image pin, cluster
+  config) lives in `rptest` only. Unit tests never touch Docker.
 - All time via a `Clock` interface; mock clock with `Advance()` in tests.
 - Everything else per the global `CLAUDE.md` and `dev:go-patterns`: AAA,
   table-driven, `newTestXxx` fixtures, no `_ = fn()`, no `time.Sleep`

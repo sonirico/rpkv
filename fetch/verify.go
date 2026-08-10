@@ -9,8 +9,12 @@ import (
 )
 
 // verifyFetch applies the read verification protocol to one polled
-// partition. resolved=false means the poll carried nothing decisive
-// for ptr (no records for the partition yet) and the caller polls on.
+// partition. Eviction is checked first (logStartOffset beats any record
+// content), then an exact-offset match, then supersession by any later
+// offset - see Result for what each classification means and the
+// timeline behind it. resolved=false means the poll carried nothing
+// decisive for ptr (no records for the partition yet) and the caller
+// polls on.
 func verifyFetch(
 	records []*kgo.Record,
 	logStartOffset int64,
