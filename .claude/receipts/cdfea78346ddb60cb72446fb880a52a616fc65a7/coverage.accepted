@@ -1,0 +1,12 @@
+Accepted by the main session, 2026-08-11.
+
+Uncovered changed function: internal/rptest/main.go Main (0%).
+
+Same structural gap accepted at bfc673d for the same function: Main is a
+TestMain body - it provisions a Docker broker, delegates to m.Run via
+testit.RunSafe, and exits through os.Exit on every path, so unit coverage
+cannot observe it. It is exercised by every `just test-integration` run
+(all three integration TestMains call it), which is its verification per
+ADR-006. This commit's change to Main (logger first, loadDotenv before the
+short-circuit, env read via ent.Get) is exercised the same way; loadDotenv
+itself is unit-covered at 100% by TestLoadDotenv.

@@ -2,6 +2,9 @@
 *.test
 /rpkv-data/
 
+# per-package integration-test env overrides, loaded by rptest.Main (ADR-006)
+.env
+
 # agent worktrees, receipts, and local state; settings.json must stay
 # committable since it wires the Stop hook
 /.claude/*

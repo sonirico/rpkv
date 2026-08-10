@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/ory/dockertest/v3"
+	"github.com/sonirico/vago/ent"
 	"github.com/sonirico/vago/testit"
 	"github.com/sonirico/vago/testit/redpanda"
 )
@@ -26,11 +27,16 @@ var clusterConfig = map[string]string{
 // and tests run against that address instead - which must already carry
 // clusterConfig.
 func Main(m *testing.M) {
-	if os.Getenv(brokersEnvVar) != "" {
-		os.Exit(m.Run())
+	logger := newWriterLogger(os.Stderr)
+
+	if err := loadDotenv(dotenvFile); err != nil {
+		logger.Errorf("rptest: load %s: %v", dotenvFile, err)
+		os.Exit(1)
 	}
 
-	logger := newWriterLogger(os.Stderr)
+	if ent.Get(brokersEnvVar, "") != "" {
+		os.Exit(m.Run())
+	}
 
 	res, err := redpanda.NewResource(
 		"",
