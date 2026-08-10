@@ -10,8 +10,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os/exec"
-	"strings"
 	"testing"
 	"time"
 
@@ -339,13 +337,12 @@ func TestIngesterCrashRestartConvergence(t *testing.T) {
 		groupListCtx, groupListCancel := context.WithTimeout(context.Background(), testTimeout)
 		defer groupListCancel()
 
-		out, err := exec.CommandContext(
-			groupListCtx, "docker", "exec", "rpkv-redpanda", "rpk", "group", "list",
-		).CombinedOutput()
-		require.NoError(t, err, "rpk group list: %s", out)
+		adminClient, err := kgo.NewClient(kgo.SeedBrokers(rptest.Brokers()))
+		require.NoError(t, err)
+		t.Cleanup(adminClient.Close)
 
-		lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-		require.NotEmpty(t, lines)
-		assert.Len(t, lines, 1, "expected only the header row, got: %s", out)
+		groups, err := kadm.NewClient(adminClient).ListGroups(groupListCtx)
+		require.NoError(t, err)
+		assert.Empty(t, groups, "expected no broker-side consumer groups")
 	})
 }
