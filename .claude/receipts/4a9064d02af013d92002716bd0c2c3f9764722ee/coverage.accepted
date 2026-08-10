@@ -1,0 +1,18 @@
+Accepted by the main session, 2026-08-10.
+
+NewIngester, Run and SkippedNullKeys measure 0% in the unit-coverage run
+because their only honest exercise needs a real broker, and that exercise
+now exists: ingest/ingester_integration_test.go (this tip's commit,
+4a9064d) runs the roadmap's crash-restart convergence criterion behind
+-tags integration, which the unit coverage measurement cannot see.
+
+The suite was executed by the main session, uncached, against a fresh
+dev-loop broker at this tip:
+  just redpanda-up && go test -tags integration -count=1 -race ./ingest/
+  -> ok github.com/sonirico/rpkv/ingest 1.891s (exit 0)
+  just redpanda-down -> no rpkv-redpanda container remains
+
+Unit-mocking *kgo.Client to fake this coverage would test the mock and
+contradict the black-box contract-test discipline (repo CLAUDE.md,
+ADR-002). resumeOffset and collectEntries, the unit-testable logic, are at
+100%.

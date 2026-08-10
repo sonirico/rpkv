@@ -1,0 +1,17 @@
+Accepted by the main session, 2026-08-10.
+
+NewIngester, Run and SkippedNullKeys measure 0% because their only honest
+exercise needs a real broker: Run's contract (partition discovery, resume
+at checkpoint+1, poll/apply loop) is exactly what the roadmap's verification
+criterion tests via the integration suite, which is build-tagged
+(-tags integration) and therefore invisible to the unit coverage run.
+
+That suite is step 2 of the frozen plan rpkv-01-ingest (file
+ingest/ingester_integration_test.go, commit "test(ingest): crash-restart
+convergence against the dev loop") and lands on this same branch before
+anything is pushed. Faking unit coverage of Run with a mocked kgo client
+would test the mock, not the contract, and contradict the black-box
+contract-test discipline in CLAUDE.md.
+
+resumeOffset and collectEntries — the logic that can be unit-tested — are
+at 100%.
