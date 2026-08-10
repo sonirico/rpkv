@@ -1,0 +1,17 @@
+Accepted by the main session, 2026-08-10.
+
+NewFetcher and FetchAt measure 0% in the unit-coverage run because their
+only honest exercise needs a real broker: FetchAt's contract (direct
+assignment at the pointer offset, poll, verified classification) is
+exactly what the roadmap's verification criterion tests via the
+integration suite, which is build-tagged (-tags integration) and
+therefore invisible to the unit coverage run.
+
+That suite is step 2 of the frozen plan rpkv-02-fetch
+(fetch/fetcher_integration_test.go, roadmap criteria (a)(b)(c)) and lands
+on this same branch before anything is pushed. Unit-mocking *kgo.Client
+would test the mock, not the contract, and contradict the black-box
+contract-test discipline (repo CLAUDE.md, ADR-002).
+
+verifyFetch - the classification logic that can be unit-tested - is at
+100%.

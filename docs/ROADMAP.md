@@ -37,6 +37,14 @@ never silently becomes `[x]`.
       locally, `just redpanda-down` leaves no container.
 - [x] CI: GitHub Actions running `just setup` + `just check`.
       Verification: green run. (Pends on first push to a remote.)
+- [x] **Integration substrate on testit (ADR-006, replaces the dev-loop
+      test path above).** `internal/rptest` provisions one Redpanda per
+      test binary via `vago/testit/redpanda`; broker definition (image
+      pin, cluster config) lives only there; CI gains a `just
+      test-integration` job. `redpanda-up`/`redpanda-down` survive as
+      manual conveniences.
+      Verification: `just test-integration` green with no dev-loop
+      container running; CI integration job green.
 
 ## Phase 1 - Core (contracts SPEC section; every package lands with its tests)
 
@@ -75,6 +83,15 @@ never silently becomes `[x]`.
       rpkv, produce, `GET` returns the value with correct headers;
       tombstone -> 404; `CGO_ENABLED=0 go build ./...` succeeds and is
       asserted in CI.
+
+- [ ] **`metrics/` facade + `GET /metrics`.** Counters/histograms behind
+      private interfaces in the consuming packages (fetch outcomes
+      including superseded/evicted, supersede retries, ingest lag per
+      partition, apply batch sizes); the prometheus implementation lives
+      only in wiring (`cmd/rpkv`), exposed as `GET /metrics`. Phase 3's
+      benchmarks read the same primitives through the facade, without
+      prometheus. Verification: unit tests against a fake sink; `/metrics`
+      smoke assertion inside the e2e test above.
 
 ## Phase 2 - Resilience proof (the compaction claims become tests)
 

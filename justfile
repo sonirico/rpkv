@@ -10,8 +10,9 @@ golines_version := "v0.13.0"
 
 local_prefix := "github.com/sonirico/rpkv"
 
-# Pin the dev-loop broker for the same reason as the tool versions above:
-# `redpanda-up` and CI must agree on exactly which image is under test.
+# The manual dev-loop broker pin. Not authoritative: integration tests
+# self-provision their broker via internal/rptest (ADR-006), whose image
+# pin is the source of truth - keep this one matching it.
 redpanda_image := "docker.redpanda.com/redpandadata/redpanda:v26.1.15"
 redpanda_container := "rpkv-redpanda"
 redpanda_port := "19092"
@@ -96,19 +97,22 @@ test:
 test-race:
     go test ./... -race
 
-# Start the single-node dev-loop Redpanda container: already running is a
-# no-op, stopped is restarted in place (never removed+recreated), absent is
-# created. Existence/status comes from `docker ps` filters (non-empty output
-# is the whole signal) rather than `docker inspect | jq`, so the recipe has
-# no jq dependency and no failure mode where a missing jq silently reads as
-# "container absent". Blocks until `rpk cluster health` reports healthy,
-# because the roadmap chains `just redpanda-up && just test-integration`
-# directly - a recipe that returns before the broker accepts connections
-# would make that chain flaky instead of failing loudly here. The --add-host
-# alias exists because the default bridge network resolves no container
-# names, yet the advertised internal listener is {{ redpanda_container }}:9092 - without
-# the alias any `docker exec ... rpk` command that dials brokers from
-# metadata (group list, for one) fails on its own hostname.
+# Start the single-node dev-loop Redpanda container - a manual convenience
+# for poking a broker with rpk by hand, NOT part of the test path since
+# ADR-006 (tests self-provision via internal/rptest; to point them here,
+# RPKV_TEST_BROKERS=localhost:{{ redpanda_port }}, accepting that this
+# broker lacks rptest's cluster config). Already running is a no-op,
+# stopped is restarted in place (never removed+recreated), absent is
+# created. Existence/status comes from `docker ps` filters (non-empty
+# output is the whole signal) rather than `docker inspect | jq`, so the
+# recipe has no jq dependency and no failure mode where a missing jq
+# silently reads as "container absent". Blocks until `rpk cluster health`
+# reports healthy so a chained command never races the broker. The
+# --add-host alias exists because the default bridge network resolves no
+# container names, yet the advertised internal listener is
+# {{ redpanda_container }}:9092 - without the alias any
+# `docker exec ... rpk` command that dials brokers from metadata (group
+# list, for one) fails on its own hostname.
 redpanda-up:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -148,10 +152,13 @@ redpanda-down:
     fi
     docker rm -f {{ redpanda_container }} >/dev/null
 
-# Kept independent of redpanda-up as a just dependency: the roadmap chains
-# them explicitly with `&&`, so this recipe only runs the tests.
+# Integration tests self-provision one Redpanda per test binary through
+# internal/rptest + testit/redpanda (ADR-006); the only requirement is a
+# running Docker daemon. -p 1 serializes package binaries: testit's pool
+# uses one fixed docker network name, and one broker at a time keeps runs
+# deterministic under load - which benchmarks will rely on.
 test-integration:
-    go test -tags integration ./... -race
+    go test -tags integration -p 1 ./... -race
 
 # Public packages must not import internal/ (ADR-002's layout rule).
 boundaries-check:
