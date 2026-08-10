@@ -54,7 +54,7 @@ never silently becomes `[x]`.
       partitions, kill ingester mid-stream, restart, produce more; final
       index == naive materialization; no broker-side group exists
       (`rpk group list` empty).
-- [ ] **`fetch/`** per SPEC section `fetch/` implementing SPEC "Compaction model"
+- [x] **`fetch/`** per SPEC section `fetch/` implementing SPEC "Compaction model"
       mechanism 2 verbatim (batch-level record selection at the exact
       offset; `Superseded`/`Evicted` classification).
       Verification: integration tests - (a) every produced key fetched
