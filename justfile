@@ -104,7 +104,11 @@ test-race:
 # "container absent". Blocks until `rpk cluster health` reports healthy,
 # because the roadmap chains `just redpanda-up && just test-integration`
 # directly - a recipe that returns before the broker accepts connections
-# would make that chain flaky instead of failing loudly here.
+# would make that chain flaky instead of failing loudly here. The --add-host
+# alias exists because the default bridge network resolves no container
+# names, yet the advertised internal listener is {{ redpanda_container }}:9092 - without
+# the alias any `docker exec ... rpk` command that dials brokers from
+# metadata (group list, for one) fails on its own hostname.
 redpanda-up:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -115,6 +119,7 @@ redpanda-up:
     else
         docker run -d --name {{ redpanda_container }} \
             -p {{ redpanda_port }}:{{ redpanda_port }} \
+            --add-host {{ redpanda_container }}:127.0.0.1 \
             {{ redpanda_image }} \
             redpanda start --mode dev-container --smp 1 --overprovisioned \
             --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:{{ redpanda_port }} \

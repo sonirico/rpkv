@@ -47,7 +47,7 @@ never silently becomes `[x]`.
       atomicity test - reopen after simulated crash between polls, no
       checkpoint without its entries; tombstone test; `Checkpoint` -1
       semantics; unit-only, no broker.
-- [ ] **`ingest/`** per SPEC section `ingest/`: partition assignment without
+- [x] **`ingest/`** per SPEC section `ingest/`: partition assignment without
       groups, resume at checkpoint+1 or log start, one atomic `Apply` per
       poll per partition, null-key skip counted.
       Verification: integration test (dev loop) - produce N keys across
