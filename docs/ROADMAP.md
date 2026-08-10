@@ -35,7 +35,7 @@ never silently becomes `[x]`.
       produce one record with franz-go, consume it back, byte-equal.
       Verification: `just redpanda-up && just test-integration` green
       locally, `just redpanda-down` leaves no container.
-- [ ] CI: GitHub Actions running `just setup` + `just check`.
+- [x] CI: GitHub Actions running `just setup` + `just check`.
       Verification: green run. (Pends on first push to a remote.)
 
 ## Phase 1 - Core (contracts SPEC section; every package lands with its tests)
