@@ -4,7 +4,9 @@ go 1.26.4
 
 require (
 	github.com/cockroachdb/pebble v1.1.5
+	github.com/joho/godotenv v1.5.1
 	github.com/ory/dockertest/v3 v3.12.0
+	github.com/sonirico/vago v0.12.0
 	github.com/sonirico/vago/testit v0.3.0
 	github.com/sonirico/vago/testit/redpanda v0.1.0
 	github.com/stretchr/testify v1.11.1
@@ -63,7 +65,6 @@ require (
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/sergi/go-diff v1.4.0 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
-	github.com/sonirico/vago v0.12.0 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect

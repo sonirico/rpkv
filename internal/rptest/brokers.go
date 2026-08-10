@@ -4,7 +4,7 @@
 // TestMain calls Main, and tests dial Brokers().
 package rptest
 
-import "os"
+import "github.com/sonirico/vago/ent"
 
 const brokersEnvVar = "RPKV_TEST_BROKERS"
 
@@ -14,10 +14,9 @@ var brokerAddr string
 
 // Brokers returns the Kafka bootstrap address for integration tests.
 // RPKV_TEST_BROKERS overrides; otherwise it is the address of the broker
-// Main started for this test binary.
+// Main started for this test binary. Main also loads a gitignored .env
+// from the test binary's working directory before reading the
+// environment; the real environment always wins over the file.
 func Brokers() string {
-	if v := os.Getenv(brokersEnvVar); v != "" {
-		return v
-	}
-	return brokerAddr
+	return ent.Get(brokersEnvVar, brokerAddr)
 }

@@ -52,3 +52,7 @@ caveat that such a broker must already carry rptest's cluster config.
 - rpkv gains test-only dependencies: `vago/testit`, `vago/testit/redpanda`
   and ory/dockertest. Nothing in production imports them; `internal/`
   placement plus the build tag keep them out of the binary.
+- Each integration package directory may hold a gitignored `.env` (loaded
+  by `rptest.Main` via godotenv before anything reads the environment;
+  already-set variables are never overridden) as a local convenience for
+  `RPKV_TEST_BROKERS` and friends.

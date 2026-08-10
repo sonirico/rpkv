@@ -101,7 +101,10 @@ test-race:
 # for poking a broker with rpk by hand, NOT part of the test path since
 # ADR-006 (tests self-provision via internal/rptest; to point them here,
 # RPKV_TEST_BROKERS=localhost:{{ redpanda_port }}, accepting that this
-# broker lacks rptest's cluster config). Already running is a no-op,
+# broker lacks rptest's cluster config). Dropping a .env file with
+# RPKV_TEST_BROKERS=localhost:19092 in the integration package directory
+# (e.g. fetch/.env) achieves the same without exporting.
+# Already running is a no-op,
 # stopped is restarted in place (never removed+recreated), absent is
 # created. Existence/status comes from `docker ps` filters (non-empty
 # output is the whole signal) rather than `docker inspect | jq`, so the
