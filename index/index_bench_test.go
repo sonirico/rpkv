@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/cockroachdb/pebble"
-	"github.com/cockroachdb/pebble/vfs"
 	"github.com/stretchr/testify/require"
 
 	"github.com/sonirico/rpkv/index"
@@ -25,12 +23,7 @@ func newBenchEntries(n int) []index.Entry {
 }
 
 func BenchmarkApply(b *testing.B) {
-	db, err := pebble.Open("", &pebble.Options{FS: vfs.NewMem()})
-	require.NoError(b, err)
-	b.Cleanup(func() {
-		require.NoError(b, db.Close())
-	})
-	ix := index.NewIndex(db)
+	ix := newTestIndex(b).Index
 
 	entries := newBenchEntries(benchBatchSize)
 	checkpoints := map[int32]int64{0: 1, 1: 1, 2: 1, 3: 1}
@@ -43,12 +36,7 @@ func BenchmarkApply(b *testing.B) {
 }
 
 func BenchmarkGet(b *testing.B) {
-	db, err := pebble.Open("", &pebble.Options{FS: vfs.NewMem()})
-	require.NoError(b, err)
-	b.Cleanup(func() {
-		require.NoError(b, db.Close())
-	})
-	ix := index.NewIndex(db)
+	ix := newTestIndex(b).Index
 
 	entries := newBenchEntries(benchBatchSize)
 	require.NoError(b, ix.Apply(entries, nil))

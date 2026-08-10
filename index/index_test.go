@@ -13,20 +13,21 @@ import (
 
 type testIndexFixture struct {
 	Index *index.Index
+	DB    *pebble.DB
 }
 
-func newTestIndex(t *testing.T) testIndexFixture {
-	t.Helper()
+func newTestIndex(tb testing.TB) testIndexFixture {
+	tb.Helper()
 
 	db, err := pebble.Open("", &pebble.Options{FS: vfs.NewMem()})
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	ix := index.NewIndex(db)
-	t.Cleanup(func() {
-		assert.NoError(t, ix.Close())
+	tb.Cleanup(func() {
+		assert.NoError(tb, ix.Close())
 	})
 
-	return testIndexFixture{Index: ix}
+	return testIndexFixture{Index: ix, DB: db}
 }
 
 func TestIndexCloseIsIdempotent(t *testing.T) {
@@ -294,4 +295,48 @@ func TestIndexCrashRecovery(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, index.Lookup{Pointer: fx.Lost.Pointer, Found: true}, gotLost)
 	})
+}
+
+func TestIndexLookupCorruptValue(t *testing.T) {
+	type testCase struct {
+		name     string
+		rawKey   []byte
+		badValue []byte
+		act      func(fx testIndexFixture) error
+	}
+
+	tests := []testCase{
+		{
+			name:     "corrupt entry value surfaces from Get",
+			rawKey:   append([]byte{0x01}, []byte("k1")...),
+			badValue: []byte("short"),
+			act: func(fx testIndexFixture) error {
+				_, err := fx.Index.Get([]byte("k1"))
+				return err
+			},
+		},
+		{
+			name:     "corrupt checkpoint value surfaces from Checkpoint",
+			rawKey:   append([]byte{0x02}, 0, 0, 0, 3),
+			badValue: []byte("short"),
+			act: func(fx testIndexFixture) error {
+				_, err := fx.Index.Checkpoint(3)
+				return err
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			fx := newTestIndex(t)
+			require.NoError(t, fx.DB.Set(tc.rawKey, tc.badValue, pebble.Sync))
+
+			err := tc.act(fx)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "corrupt value")
+		})
+	}
 }
