@@ -13,5 +13,5 @@ anything is pushed. Faking unit coverage of Run with a mocked kgo client
 would test the mock, not the contract, and contradict the black-box
 contract-test discipline in CLAUDE.md.
 
-resumeOffset and collectEntries — the logic that can be unit-tested — are
+resumeOffset and collectEntries - the logic that can be unit-tested - are
 at 100%.
