@@ -1,0 +1,18 @@
+Accepted by the main session, 2026-08-10.
+
+NewFetcher and FetchAt measure 0% in the unit-coverage run because their
+only honest exercise needs a real broker, and that exercise exists on
+this branch: fetch/fetcher_integration_test.go runs the roadmap's
+verification criteria (a) round-trip byte-identical, (b) superseded
+after real compaction, (c) evicted by retention, behind -tags
+integration, invisible to the unit coverage measurement.
+
+The suite was executed by the main session, uncached, against a fresh
+dev-loop broker on this branch:
+  just redpanda-down && just redpanda-up
+  go test -tags integration -count=1 -race ./fetch/
+  -> ok github.com/sonirico/rpkv/fetch 4.719s (exit 0)
+
+Unit-mocking *kgo.Client would test the mock and contradict the
+black-box contract-test discipline (repo CLAUDE.md, ADR-002).
+verifyFetch, the unit-testable classification logic, is at 100%.

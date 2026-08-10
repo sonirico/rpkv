@@ -1,0 +1,1 @@
+Main is a TestMain body: it provisions a Docker broker, delegates to m.Run via testit.RunSafe and terminates the process with os.Exit on every path. Unit-testing it would require running it inside a test binary it itself controls; it is exercised by every 'just test-integration' run (all three integration TestMains call it), which is its verification per ADR-006.
