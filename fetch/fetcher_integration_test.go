@@ -52,7 +52,11 @@ type testFetchFixture struct {
 	producer *kgo.Client
 }
 
-func newTestFetchFixture(t *testing.T, partitions int32, configs map[string]*string) testFetchFixture {
+func newTestFetchFixture(
+	t *testing.T,
+	partitions int32,
+	configs map[string]*string,
+) testFetchFixture {
 	t.Helper()
 
 	adminClient, err := kgo.NewClient(kgo.SeedBrokers(rptest.Brokers()))
@@ -191,7 +195,12 @@ func produceRecords(t *testing.T, client *kgo.Client, records []*kgo.Record) []p
 // broker only evaluates segment rollover between appends; a single
 // ProduceSync call landing as one append never rolls a segment no matter
 // how large its logical payload is.
-func produceFillerRecords(t *testing.T, client *kgo.Client, topic, keyPrefix string, count, valueSize int) {
+func produceFillerRecords(
+	t *testing.T,
+	client *kgo.Client,
+	topic, keyPrefix string,
+	count, valueSize int,
+) {
 	t.Helper()
 
 	for start := 0; start < count; start += fillerChunkSize {
@@ -259,7 +268,12 @@ func TestFetcherIntegration(t *testing.T) {
 			cancel()
 			require.NoError(t, err)
 
-			assert.False(t, res.Superseded && res.Evicted, "key %q: superseded and evicted both true", key)
+			assert.False(
+				t,
+				res.Superseded && res.Evicted,
+				"key %q: superseded and evicted both true",
+				key,
+			)
 			assert.Equal(t, values[i], res.Value, "key %q", key)
 			assert.False(t, res.Superseded, "key %q", key)
 			assert.False(t, res.Evicted, "key %q", key)
@@ -290,7 +304,14 @@ func TestFetcherIntegration(t *testing.T) {
 
 		v2 := []byte("compaction-value-v2")
 		produceRecords(t, fx.producer, []*kgo.Record{{Topic: fx.topic, Key: key, Value: v2}})
-		produceFillerRecords(t, fx.producer, fx.topic, "compaction-filler", fillerRecordCount, fillerRecordBytes)
+		produceFillerRecords(
+			t,
+			fx.producer,
+			fx.topic,
+			"compaction-filler",
+			fillerRecordCount,
+			fillerRecordBytes,
+		)
 
 		var lastErr error
 		var lastRes fetch.Result
@@ -337,7 +358,14 @@ func TestFetcherIntegration(t *testing.T) {
 		ptr := lookup.Pointer
 		require.Equal(t, int64(0), ptr.Offset, "expected the first produced record at offset 0")
 
-		produceFillerRecords(t, fx.producer, fx.topic, "retention-filler", fillerRecordCount, fillerRecordBytes)
+		produceFillerRecords(
+			t,
+			fx.producer,
+			fx.topic,
+			"retention-filler",
+			fillerRecordCount,
+			fillerRecordBytes,
+		)
 
 		var lastErr error
 		var lastRes fetch.Result
