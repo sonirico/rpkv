@@ -16,13 +16,6 @@ import (
 	"github.com/sonirico/rpkv/index"
 )
 
-// Result is the outcome of a single-record fetch at a pointer's offset.
-type Result struct {
-	Value      []byte
-	Superseded bool
-	Evicted    bool
-}
-
 // Fetcher resolves a key's value from the log by fetching the single
 // record at its index pointer, over a client dedicated to this purpose.
 type Fetcher struct {

@@ -93,6 +93,42 @@ func TestVerifyFetch(t *testing.T) {
 			wantResult:   Result{Value: []byte("v1")},
 			wantResolved: true,
 		},
+		{
+			name: "log start equal to pointer is not evicted and resolves value",
+			records: []*kgo.Record{
+				{Key: key, Value: []byte("v1"), Offset: 10},
+			},
+			logStartOffset: 10,
+			wantResult:     Result{Value: []byte("v1")},
+			wantResolved:   true,
+		},
+		{
+			name: "log start beyond pointer wins over an exact offset and key match",
+			records: []*kgo.Record{
+				{Key: key, Value: []byte("v1"), Offset: 10},
+			},
+			logStartOffset: 11,
+			wantResult:     Result{Evicted: true},
+			wantResolved:   true,
+		},
+		{
+			name: "no exact match with records both below and above pointer is superseded",
+			records: []*kgo.Record{
+				{Key: key, Value: []byte("v0"), Offset: 9},
+				{Key: key, Value: []byte("v2"), Offset: 12},
+			},
+			wantResult:   Result{Superseded: true},
+			wantResolved: true,
+		},
+		{
+			name: "out of order records with a later offset before the exact match is value, not superseded",
+			records: []*kgo.Record{
+				{Key: key, Value: []byte("v2"), Offset: 11},
+				{Key: key, Value: []byte("v1"), Offset: 10},
+			},
+			wantResult:   Result{Value: []byte("v1")},
+			wantResolved: true,
+		},
 	}
 
 	for _, tc := range tests {

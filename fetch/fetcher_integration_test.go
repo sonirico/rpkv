@@ -225,6 +225,44 @@ func produceFillerRecords(
 	}
 }
 
+// waitForIndexed polls until key is indexed and returns its pointer.
+func waitForIndexed(t *testing.T, fx testFetchFixture, key []byte) index.Pointer {
+	t.Helper()
+
+	require.Eventually(t, func() bool {
+		lookup, err := fx.index.Get(key)
+		return err == nil && lookup.Found
+	}, testEventually, testEventuallyTick, "key %q was not indexed", key)
+
+	lookup, err := fx.index.Get(key)
+	require.NoError(t, err)
+	return lookup.Pointer
+}
+
+// fetchAtBounded calls FetchAt under a context bounded by testFetchTimeout,
+// owning the timeout so callers don't repeat the WithTimeout/cancel dance.
+func fetchAtBounded(
+	t *testing.T,
+	fx testFetchFixture,
+	ptr index.Pointer,
+	key []byte,
+) (fetch.Result, error) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testFetchTimeout)
+	defer cancel()
+
+	return fx.fetcher.FetchAt(ctx, ptr, key)
+}
+
+// assertMutuallyExclusive asserts that a Result never reports both
+// Superseded and Evicted.
+func assertMutuallyExclusive(t *testing.T, res fetch.Result) {
+	t.Helper()
+
+	assert.False(t, res.Superseded && res.Evicted, "superseded and evicted both true")
+}
+
 func TestFetcherIntegration(t *testing.T) {
 	t.Run("round-trip byte-identical", func(t *testing.T) {
 		fx := newTestFetchFixture(t, testPartitions, nil)
@@ -259,21 +297,12 @@ func TestFetcherIntegration(t *testing.T) {
 		}, testEventually, testEventuallyTick, "partitions did not converge to produced offsets")
 
 		for i, key := range keys {
-			lookup, err := fx.index.Get([]byte(key))
-			require.NoError(t, err)
-			require.True(t, lookup.Found, "key %q not found in index", key)
+			ptr := waitForIndexed(t, fx, []byte(key))
 
-			ctx, cancel := context.WithTimeout(context.Background(), testFetchTimeout)
-			res, err := fx.fetcher.FetchAt(ctx, lookup.Pointer, []byte(key))
-			cancel()
+			res, err := fetchAtBounded(t, fx, ptr, []byte(key))
 			require.NoError(t, err)
 
-			assert.False(
-				t,
-				res.Superseded && res.Evicted,
-				"key %q: superseded and evicted both true",
-				key,
-			)
+			assertMutuallyExclusive(t, res)
 			assert.Equal(t, values[i], res.Value, "key %q", key)
 			assert.False(t, res.Superseded, "key %q", key)
 			assert.False(t, res.Evicted, "key %q", key)
@@ -293,14 +322,7 @@ func TestFetcherIntegration(t *testing.T) {
 		v1 := []byte("compaction-value-v1")
 		produceRecords(t, fx.producer, []*kgo.Record{{Topic: fx.topic, Key: key, Value: v1}})
 
-		require.Eventually(t, func() bool {
-			lookup, err := fx.index.Get(key)
-			return err == nil && lookup.Found
-		}, testEventually, testEventuallyTick, "v1 was not indexed")
-
-		v1Lookup, err := fx.index.Get(key)
-		require.NoError(t, err)
-		v1Pointer := v1Lookup.Pointer
+		v1Pointer := waitForIndexed(t, fx, key)
 
 		v2 := []byte("compaction-value-v2")
 		produceRecords(t, fx.producer, []*kgo.Record{{Topic: fx.topic, Key: key, Value: v2}})
@@ -316,18 +338,16 @@ func TestFetcherIntegration(t *testing.T) {
 		var lastErr error
 		var lastRes fetch.Result
 		require.Eventually(t, func() bool {
-			ctx, cancel := context.WithTimeout(context.Background(), testFetchTimeout)
-			defer cancel()
-
-			res, err := fx.fetcher.FetchAt(ctx, v1Pointer, key)
+			res, err := fetchAtBounded(t, fx, v1Pointer, key)
 			if err != nil {
 				lastErr = err
+				t.Logf("FetchAt error: %v", err)
 				return false
 			}
 			lastErr = nil
 			lastRes = res
 
-			assert.False(t, res.Superseded && res.Evicted, "superseded and evicted both true")
+			assertMutuallyExclusive(t, res)
 			return res.Superseded
 		}, testEventuallyLong, testEventuallyLongTick, "v1 pointer was never observed as superseded")
 
@@ -348,14 +368,7 @@ func TestFetcherIntegration(t *testing.T) {
 		value := []byte("retention-value")
 		produceRecords(t, fx.producer, []*kgo.Record{{Topic: fx.topic, Key: key, Value: value}})
 
-		require.Eventually(t, func() bool {
-			lookup, err := fx.index.Get(key)
-			return err == nil && lookup.Found
-		}, testEventually, testEventuallyTick, "record was not indexed")
-
-		lookup, err := fx.index.Get(key)
-		require.NoError(t, err)
-		ptr := lookup.Pointer
+		ptr := waitForIndexed(t, fx, key)
 		require.Equal(t, int64(0), ptr.Offset, "expected the first produced record at offset 0")
 
 		produceFillerRecords(
@@ -394,18 +407,16 @@ func TestFetcherIntegration(t *testing.T) {
 				return false
 			}
 
-			ctx, cancel := context.WithTimeout(context.Background(), testFetchTimeout)
-			defer cancel()
-
-			res, err := fx.fetcher.FetchAt(ctx, ptr, key)
+			res, err := fetchAtBounded(t, fx, ptr, key)
 			if err != nil {
 				lastErr = err
+				t.Logf("FetchAt error: %v", err)
 				return false
 			}
 			lastErr = nil
 			lastRes = res
 
-			assert.False(t, res.Superseded && res.Evicted, "superseded and evicted both true")
+			assertMutuallyExclusive(t, res)
 			return res.Evicted
 		}, testEventuallyLong, testEventuallyLongTick, "record was never observed as evicted")
 
