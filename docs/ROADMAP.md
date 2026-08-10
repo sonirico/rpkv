@@ -40,7 +40,7 @@ never silently becomes `[x]`.
 
 ## Phase 1 - Core (contracts SPEC section; every package lands with its tests)
 
-- [ ] **`index/`** per SPEC section `index/` and SPEC section Pebble-layout, verbatim
+- [x] **`index/`** per SPEC section `index/` and SPEC section Pebble-layout, verbatim
       signatures. Includes `Close`.
       Verification: property test (`pgregory.net/rapid`) - arbitrary
       entry sequences == naive map materialization at same checkpoints;
