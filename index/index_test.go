@@ -38,7 +38,11 @@ func TestIndexCloseIsIdempotent(t *testing.T) {
 	secondErr := fx.Index.Close()
 
 	require.NoError(t, firstErr)
-	assert.NoError(t, secondErr, "a second Close must be swallowed by sync.Once, not surface Pebble's already-closed error")
+	assert.NoError(
+		t,
+		secondErr,
+		"a second Close must be swallowed by sync.Once, not surface Pebble's already-closed error",
+	)
 }
 
 func TestIndexApplyAndGet(t *testing.T) {
