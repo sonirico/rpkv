@@ -27,6 +27,7 @@ type MockClock struct {
 	mu      sync.Mutex
 	now     time.Time
 	waiters []waiter
+	notify  chan<- struct{}
 }
 
 // NewMockClock returns a MockClock whose virtual now starts at start.
@@ -47,18 +48,38 @@ func (c *MockClock) Now() time.Time {
 // registration time fires immediately.
 func (c *MockClock) After(d time.Duration) <-chan time.Time {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 
 	deadline := c.now.Add(d)
 	ch := make(chan time.Time, 1)
 
 	if !deadline.After(c.now) {
 		ch <- deadline
+		c.mu.Unlock()
 		return ch
 	}
 
 	c.waiters = append(c.waiters, waiter{deadline: deadline, ch: ch})
+	notify := c.notify
+	c.mu.Unlock()
+
+	if notify != nil {
+		notify <- struct{}{}
+	}
+
 	return ch
+}
+
+// AfterNotify registers ch to receive one signal each time After parks a
+// waiter, sent after the waiter is registered and outside the mutex, so a
+// test can Advance only once the waiter is provably parked. The send
+// blocks until ch is received from. A nil channel (the default) disables
+// notification. After calls whose deadline is already due fire
+// immediately and do not notify.
+func (c *MockClock) AfterNotify(ch chan<- struct{}) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.notify = ch
 }
 
 // Advance moves the virtual now forward by d and fires every pending
