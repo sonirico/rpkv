@@ -102,12 +102,12 @@ func newTestProduceClient(t *testing.T) *kgo.Client {
 	return client
 }
 
-// openTestIndex opens a Pebble DB at dir and wraps it in an index.Index.
+// newTestIndex opens a Pebble DB at dir and wraps it in an index.Index.
 // Close is the caller's responsibility - the restart step closes the
 // first index explicitly before reopening on the same dir, and only the
 // final, long-lived index gets a t.Cleanup, mirroring
 // index/index_test.go's newTestCrashedIndex.
-func openTestIndex(t *testing.T, dir string) *index.Index {
+func newTestIndex(t *testing.T, dir string) *index.Index {
 	t.Helper()
 
 	db, err := pebble.Open(dir, &pebble.Options{})
@@ -257,7 +257,7 @@ func TestIngesterCrashRestartConvergence(t *testing.T) {
 	wave1Records := buildWaveRecords(fx.topic, keys, 60, 2)
 	wave1 := produceWave(t, producer, wave1Records)
 
-	ix1 := openTestIndex(t, fx.dbDir)
+	ix1 := newTestIndex(t, fx.dbDir)
 	consumeClient1 := newTestProduceClient(t)
 	ingester1 := ingest.NewIngester(consumeClient1, ix1, fx.topic, fx.logger)
 
@@ -291,7 +291,7 @@ func TestIngesterCrashRestartConvergence(t *testing.T) {
 
 	require.NoError(t, ix1.Close())
 
-	ix2 := openTestIndex(t, fx.dbDir)
+	ix2 := newTestIndex(t, fx.dbDir)
 	t.Cleanup(func() {
 		assert.NoError(t, ix2.Close())
 	})
