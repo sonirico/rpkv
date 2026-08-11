@@ -1,0 +1,7 @@
+{
+  "keys": 1000000,
+  "partitions": 2,
+  "batch_size": 1000,
+  "bytes_total": 14160120,
+  "bytes_per_key": 14.16012
+}
