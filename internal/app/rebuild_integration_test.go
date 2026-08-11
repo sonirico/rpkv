@@ -166,13 +166,7 @@ func TestRebuildConvergence(t *testing.T) {
 
 	snapA := snapshotKeys(t, client, baseURL, topic, allKeys)
 
-	for key, value := range live {
-		require.Equal(t, http.StatusOK, snapA[key].Status, "key %q", key)
-		require.Equal(t, value, snapA[key].Body, "key %q", key)
-	}
-	for key := range tombstoned {
-		require.Equal(t, http.StatusNotFound, snapA[key].Status, "key %q", key)
-	}
+	assertModel(t, client, baseURL, topic, live, tombstoned)
 
 	stop()
 	require.NoError(t, os.RemoveAll(dataDir))
