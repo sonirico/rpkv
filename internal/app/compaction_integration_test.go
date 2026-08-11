@@ -132,6 +132,26 @@ func waitForQuiescence(t *testing.T, client *http.Client, baseURL, topic string)
 	}, compactionQuiesce, 200*time.Millisecond, "topic %q never reached quiescence", topic)
 }
 
+// getKV issues a GET for key against topic, reads and closes the response
+// body, and hands back both the response and the body bytes so callers can
+// inspect whatever subset of status, headers, and body they need without
+// each re-deriving the same GET+read+close sequence.
+func getKV(
+	t *testing.T,
+	client *http.Client,
+	baseURL, topic, key string,
+) (*http.Response, []byte) {
+	t.Helper()
+
+	resp, err := client.Get(baseURL + "/v1/kv/" + topic + "/" + key)
+	require.NoError(t, err)
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	return resp, body
+}
+
 // assertModel checks every live key resolves to its model value and every
 // tombstoned key 404s. Called only after waitForQuiescence, so plain
 // require loops are enough - no Eventually needed.
@@ -145,22 +165,92 @@ func assertModel(
 	t.Helper()
 
 	for key, value := range live {
-		resp, err := client.Get(baseURL + "/v1/kv/" + topic + "/" + key)
-		require.NoError(t, err)
-		body, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		require.NoError(t, resp.Body.Close())
+		resp, body := getKV(t, client, baseURL, topic, key)
 
 		require.Equal(t, http.StatusOK, resp.StatusCode, "key %q", key)
 		require.Equal(t, value, body, "key %q", key)
 	}
 
 	for key := range tombstoned {
-		resp, err := client.Get(baseURL + "/v1/kv/" + topic + "/" + key)
-		require.NoError(t, err)
-		require.NoError(t, resp.Body.Close())
+		resp, _ := getKV(t, client, baseURL, topic, key)
 
 		require.Equal(t, http.StatusNotFound, resp.StatusCode, "key %q", key)
+	}
+}
+
+// produceCompactionRound produces one round of overwrites, tombstones, and
+// filler records against topic, mutating live/tombstoned/seq in place to
+// track the model. Shared by TestCompactionContract and
+// TestRebuildConvergence: both drive the identical overwrite/tombstone/
+// filler shape and the same tried-set bail-out, differing only in their rng
+// seed, overwrite value format, filler key prefix, and the tombstone
+// failure message they want on the wire (a round index for the compaction
+// test, none for the single-round rebuild test).
+func produceCompactionRound(
+	t *testing.T,
+	producer *kgo.Client,
+	topic string,
+	rng *rand.Rand,
+	live map[string][]byte,
+	tombstoned map[string]struct{},
+	seq *int,
+	overwriteValueFn func(seq int) []byte,
+	fillerKeyPrefix string,
+	tombstoneFailMsgAndArgs ...interface{},
+) {
+	t.Helper()
+
+	overwriteKeys, overwriteValues := produceChunked(
+		t, producer, topic,
+		compactionOverwritesPerRound, compactionOverwriteChunkSize,
+		func(i int) string { return fmt.Sprintf("k-%04d", rng.Intn(compactionKeySpace)) },
+		func(i int) []byte {
+			value := overwriteValueFn(*seq)
+			*seq++
+			return value
+		},
+	)
+	for i, key := range overwriteKeys {
+		live[key] = overwriteValues[i]
+		delete(tombstoned, key)
+	}
+
+	tried := make(map[string]struct{})
+	tombstonedThisRound := 0
+	for tombstonedThisRound < compactionTombstonesPerRound {
+		key := fmt.Sprintf("k-%04d", rng.Intn(compactionKeySpace))
+		if _, present := live[key]; !present {
+			tried[key] = struct{}{}
+			if len(tried) >= compactionKeySpace {
+				break
+			}
+			continue
+		}
+
+		produceRecords(t, producer, &kgo.Record{Topic: topic, Key: []byte(key), Value: nil})
+
+		delete(live, key)
+		tombstoned[key] = struct{}{}
+		tombstonedThisRound++
+	}
+	require.Equal(
+		t, compactionTombstonesPerRound, tombstonedThisRound,
+		tombstoneFailMsgAndArgs...,
+	)
+
+	fillerKeys, fillerValues := produceChunked(
+		t, producer, topic,
+		compactionFillerPerRound, compactionFillerChunkSize,
+		func(i int) string { return fmt.Sprintf("%s-%04d", fillerKeyPrefix, i) },
+		func(i int) []byte {
+			value := make([]byte, compactionFillerValueSize)
+			_, err := cryptorand.Read(value)
+			require.NoError(t, err)
+			return value
+		},
+	)
+	for i, key := range fillerKeys {
+		live[key] = fillerValues[i]
 	}
 }
 
@@ -195,59 +285,12 @@ func TestCompactionContract(t *testing.T) {
 	seq := 0
 
 	for round := 0; round < compactionRounds; round++ {
-		overwriteKeys, overwriteValues := produceChunked(
-			t, producer, topic,
-			compactionOverwritesPerRound, compactionOverwriteChunkSize,
-			func(i int) string { return fmt.Sprintf("k-%04d", rng.Intn(compactionKeySpace)) },
-			func(i int) []byte {
-				value := []byte(fmt.Sprintf("r%d-s%d", round, seq))
-				seq++
-				return value
-			},
-		)
-		for i, key := range overwriteKeys {
-			live[key] = overwriteValues[i]
-			delete(tombstoned, key)
-		}
-
-		tried := make(map[string]struct{})
-		tombstonedThisRound := 0
-		for tombstonedThisRound < compactionTombstonesPerRound {
-			key := fmt.Sprintf("k-%04d", rng.Intn(compactionKeySpace))
-			if _, present := live[key]; !present {
-				tried[key] = struct{}{}
-				if len(tried) >= compactionKeySpace {
-					break
-				}
-				continue
-			}
-
-			produceRecords(t, producer, &kgo.Record{Topic: topic, Key: []byte(key), Value: nil})
-
-			delete(live, key)
-			tombstoned[key] = struct{}{}
-			tombstonedThisRound++
-		}
-		require.Equal(
-			t, compactionTombstonesPerRound, tombstonedThisRound,
+		produceCompactionRound(
+			t, producer, topic, rng, live, tombstoned, &seq,
+			func(s int) []byte { return []byte(fmt.Sprintf("r%d-s%d", round, s)) },
+			fmt.Sprintf("fill-r%d", round),
 			"round %d: not enough live keys to tombstone", round,
 		)
-
-		fillerPrefix := fmt.Sprintf("fill-r%d", round)
-		fillerKeys, fillerValues := produceChunked(
-			t, producer, topic,
-			compactionFillerPerRound, compactionFillerChunkSize,
-			func(i int) string { return fmt.Sprintf("%s-%04d", fillerPrefix, i) },
-			func(i int) []byte {
-				value := make([]byte, compactionFillerValueSize)
-				_, err := cryptorand.Read(value)
-				require.NoError(t, err)
-				return value
-			},
-		)
-		for i, key := range fillerKeys {
-			live[key] = fillerValues[i]
-		}
 
 		if round == 0 {
 			baseURL, stop = startTestApp(t, cfg)
