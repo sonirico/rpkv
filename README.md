@@ -17,6 +17,11 @@ latency, honestly declared.
 
 Sweet spot: big values, modest read rates, on-prem.
 
+The wrong fit: hot read paths or small values. Every read pays a
+broker round-trip (11.1 ms p50 measured, see
+[Benchmarks](#benchmarks)); if you read far more often than you can
+afford that, a value-materializing store is the better trade.
+
 ## How it works
 
 ```
@@ -147,6 +152,23 @@ hello-value
 | `rpkv_ingest_apply_batch_size` | Histogram | `topic` |
 | `rpkv_ingest_null_keys_skipped_total` | Counter | `topic` |
 | `rpkv_ingest_lag` | Gauge | `topic`, `partition` |
+
+## Deployment
+
+Replicas are fully independent: each instance consumes the indexed
+topics with its own client (direct partition assignment, no consumer
+group) and owns a private Pebble index. Horizontal read scaling is N
+instances behind a load balancer. Failover and recovery are the same
+operation: start a fresh instance and let it rebuild from the log
+(~996k keys/s measured), or restart on the same volume and resume
+from the checkpoint.
+
+There is no replication protocol and no cross-replica coordination:
+two replicas can serve different checkpoints, so there is no
+read-your-writes and no monotonic-reads guarantee across instances.
+Staleness is per-replica, bounded by ingest lag, and observable as
+`rpkv_ingest_lag`. Rationale and accepted costs:
+[ADR-008](docs/adr/008-deployment-replication.md).
 
 ## Benchmarks
 
