@@ -101,7 +101,7 @@ never silently becomes `[x]`.
       quiescent point every live key `GET`s its latest value and every
       tombstoned key 404s. This is the suite the parked upstream plan
       reuses as acceptance - keep it black-box (produce -> observe HTTP).
-- [ ] **Rebuild convergence.** Delete the Pebble dir after the suite
+- [x] **Rebuild convergence.** Delete the Pebble dir after the suite
       above; re-ingest from the (compacted) log; assert the rebuilt index
       state equals the pre-delete state.
 - [ ] **Crash-consistency sweep.** Kill -9 the process at randomized
