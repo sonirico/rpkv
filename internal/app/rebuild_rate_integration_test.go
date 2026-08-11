@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	rebuildBenchKeys         = 200000
+	rebuildBenchKeys         = 1000000
 	rebuildBenchValueSize    = 256
 	rebuildBenchProduceChunk = 1000
 	rebuildBenchSeed         = 11

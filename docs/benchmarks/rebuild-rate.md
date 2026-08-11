@@ -5,7 +5,7 @@ client-observed from process start to quiescence.
 
 ## Workload
 
-200000 keys, 256-byte values, 2 partitions, seed 11.
+1000000 keys, 256-byte values, 2 partitions, seed 11.
 
 ## Environment
 
@@ -16,12 +16,12 @@ client-observed from process start to quiescence.
 
 ## Results
 
-Commit: 4f6e488
+Commit: a29472a
 
 | Metric        | Value       |
 |---------------|------------:|
-| elapsed (s)   | 0.202445    |
-| keys/s        | 987922.66   |
+| elapsed (s)   | 1.003542    |
+| keys/s        | 996470.76   |
 
 ## Reproduce
 

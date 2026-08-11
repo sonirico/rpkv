@@ -1,7 +1,7 @@
 {
-  "keys": 200000,
+  "keys": 1000000,
   "value_size": 256,
   "partitions": 2,
-  "elapsed_s": 0.202444998,
-  "keys_per_s": 987922.6554167568
+  "elapsed_s": 1.003541738,
+  "keys_per_s": 996470.7616376191
 }
