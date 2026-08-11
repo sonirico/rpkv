@@ -1,5 +1,7 @@
 # rpkv
 
+<p align="center"><img src="docs/assets/rpkv.png" alt="rpkv logo" width="420"></p>
+
 Key-value reads over Redpanda topics, without duplicating values.
 
 [![CI](https://github.com/sonirico/rpkv/actions/workflows/ci.yml/badge.svg)](https://github.com/sonirico/rpkv/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Go](https://img.shields.io/badge/go-1.26.4-00ADD8.svg)](go.mod)
