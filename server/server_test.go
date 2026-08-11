@@ -18,6 +18,7 @@ import (
 	"github.com/sonirico/rpkv/clock/clocktest"
 	"github.com/sonirico/rpkv/fetch"
 	"github.com/sonirico/rpkv/index"
+	"github.com/sonirico/rpkv/metrics/metricstest"
 )
 
 type fakeIndex struct {
@@ -88,12 +89,16 @@ func stickyIndex(calls, n int) int {
 	return calls
 }
 
-func newTestServer(t *testing.T, backends map[string]Backend) (*Server, *clocktest.Mock) {
+func newTestServer(
+	t *testing.T,
+	backends map[string]Backend,
+	opts ...Option,
+) (*Server, *clocktest.Mock) {
 	t.Helper()
 
 	clk := clocktest.NewMock(time.Unix(0, 0))
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return New(backends, clk, logger), clk
+	return New(backends, clk, logger, opts...), clk
 }
 
 func newTestBackend(ix indexReader, f valueFetcher, o offsetSource) Backend {
@@ -241,6 +246,22 @@ func TestServerGet(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("hit observes one request duration sample", func(t *testing.T) {
+		requestDuration := metricstest.NewHistogram()
+		srv, _ := newTestServer(
+			t,
+			hitBackends,
+			WithMetrics(Metrics{RequestDuration: requestDuration}),
+		)
+		req := httptest.NewRequest(http.MethodGet, "/v1/kv/orders/k1", nil)
+		rec := httptest.NewRecorder()
+
+		srv.ServeHTTP(rec, req)
+
+		require.Equal(t, http.StatusOK, rec.Code)
+		assert.Len(t, requestDuration.Observations(), 1)
+	})
 }
 
 func TestServerGetSupersede(t *testing.T) {
@@ -262,7 +283,12 @@ func TestServerGetSupersede(t *testing.T) {
 				&fakeOffsets{},
 			),
 		}
-		srv, clk := newTestServer(t, backends)
+		supersedeRetries := metricstest.NewCounter()
+		srv, clk := newTestServer(
+			t,
+			backends,
+			WithMetrics(Metrics{SupersedeRetries: supersedeRetries}),
+		)
 		notify := make(chan struct{})
 		clk.AfterNotify(notify)
 
@@ -295,6 +321,7 @@ func TestServerGetSupersede(t *testing.T) {
 		assert.Equal(t, "0", rec.Header().Get("X-Rpkv-Partition"))
 		assert.Equal(t, "30", rec.Header().Get("X-Rpkv-Offset"))
 		assert.Equal(t, "40", rec.Header().Get("X-Rpkv-Checkpoint"))
+		assert.Equal(t, float64(2), supersedeRetries.Count())
 	})
 
 	t.Run("budget exhausted", func(t *testing.T) {
@@ -309,7 +336,12 @@ func TestServerGetSupersede(t *testing.T) {
 				&fakeOffsets{},
 			),
 		}
-		srv, clk := newTestServer(t, backends)
+		supersedeRetries := metricstest.NewCounter()
+		srv, clk := newTestServer(
+			t,
+			backends,
+			WithMetrics(Metrics{SupersedeRetries: supersedeRetries}),
+		)
 		notify := make(chan struct{})
 		clk.AfterNotify(notify)
 
@@ -344,6 +376,7 @@ func TestServerGetSupersede(t *testing.T) {
 		require.Equal(t, http.StatusServiceUnavailable, rec.Code)
 		assert.Equal(t, "1", rec.Header().Get("Retry-After"))
 		assert.Equal(t, "", rec.Body.String())
+		assert.Equal(t, float64(40), supersedeRetries.Count())
 	})
 
 	t.Run("re-resolve finds tombstone", func(t *testing.T) {
@@ -361,7 +394,12 @@ func TestServerGetSupersede(t *testing.T) {
 				&fakeOffsets{},
 			),
 		}
-		srv, clk := newTestServer(t, backends)
+		supersedeRetries := metricstest.NewCounter()
+		srv, clk := newTestServer(
+			t,
+			backends,
+			WithMetrics(Metrics{SupersedeRetries: supersedeRetries}),
+		)
 		notify := make(chan struct{})
 		clk.AfterNotify(notify)
 
@@ -389,6 +427,7 @@ func TestServerGetSupersede(t *testing.T) {
 
 		require.Equal(t, http.StatusNotFound, rec.Code)
 		assert.Equal(t, "", rec.Body.String())
+		assert.Equal(t, float64(1), supersedeRetries.Count())
 	})
 }
 

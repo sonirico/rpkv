@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/sonirico/rpkv/clock"
+	"github.com/sonirico/rpkv/metrics"
 )
 
 const (
@@ -22,15 +23,28 @@ type Server struct {
 	clk      clock.Clock
 	logger   *slog.Logger
 	mux      *http.ServeMux
+	metrics  Metrics
 }
 
 // New wires the per-topic backends, clock and logger into a Server
 // and registers its routes.
-func New(backends map[string]Backend, clk clock.Clock, logger *slog.Logger) *Server {
+func New(
+	backends map[string]Backend,
+	clk clock.Clock,
+	logger *slog.Logger,
+	opts ...Option,
+) *Server {
 	s := &Server{
 		backends: backends,
 		clk:      clk,
 		logger:   logger,
+		metrics: Metrics{
+			RequestDuration:  metrics.NewNoopHistogram(),
+			SupersedeRetries: metrics.NewNoopCounter(),
+		},
+	}
+	for _, opt := range opts {
+		opt(s)
 	}
 
 	mux := http.NewServeMux()

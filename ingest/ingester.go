@@ -13,6 +13,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 
 	"github.com/sonirico/rpkv/index"
+	"github.com/sonirico/rpkv/metrics"
 )
 
 // Ingester consumes a topic's partitions directly (no consumer group) and
@@ -24,6 +25,7 @@ type Ingester struct {
 	topic           string
 	logger          *slog.Logger
 	skippedNullKeys atomic.Int64
+	metrics         Metrics
 }
 
 // New wires an already-configured kgo client and index into an
@@ -34,13 +36,22 @@ func New(
 	index *index.Index,
 	topic string,
 	logger *slog.Logger,
+	opts ...Option,
 ) *Ingester {
-	return &Ingester{
+	in := &Ingester{
 		client: client,
 		index:  index,
 		topic:  topic,
 		logger: logger,
+		metrics: Metrics{
+			ApplyBatchSize:  metrics.NewNoopHistogram(),
+			NullKeysSkipped: metrics.NewNoopCounter(),
+		},
 	}
+	for _, opt := range opts {
+		opt(in)
+	}
+	return in
 }
 
 // Run discovers the topic's partitions, assigns them for direct
@@ -95,6 +106,10 @@ func (in *Ingester) Run(ctx context.Context) error {
 			if err := in.index.Apply(entries, map[int32]int64{ftp.Partition: checkpoint}); err != nil {
 				applyErr = fmt.Errorf("ingest: apply partition %d: %w", ftp.Partition, err)
 				return
+			}
+			in.metrics.ApplyBatchSize.Observe(float64(len(ftp.Records)))
+			if skipped > 0 {
+				in.metrics.NullKeysSkipped.Add(float64(skipped))
 			}
 			in.logger.Debug(
 				"ingest: applied partition batch",
