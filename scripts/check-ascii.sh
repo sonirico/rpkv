@@ -4,6 +4,7 @@
 # inconsistently across terminals, editors and diff tools, and are easy to
 # reintroduce one prose edit at a time. Catching the drift in the gate is the
 # only way it stays fixed instead of getting re-typed in the next commit.
+# Image binaries (e.g. PNG) are exempt because they are inherently non-ASCII.
 set -euo pipefail
 
 root="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
@@ -14,7 +15,7 @@ if ! command -v git >/dev/null 2>&1; then
     exit 1
 fi
 
-offenders="$(git ls-files -z | xargs -0 grep -lP '[^\x00-\x7F]' 2>/dev/null || true)"
+offenders="$(git ls-files -z -- . ':(exclude)*.png' | xargs -0 grep -lP '[^\x00-\x7F]' 2>/dev/null || true)"
 
 if [[ -n "$offenders" ]]; then
     echo "check-ascii: non-ASCII characters found in tracked file(s):" >&2

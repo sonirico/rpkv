@@ -447,6 +447,24 @@ run "check-ascii reports a non-ASCII character in a tracked file" \
 expect_exit 1
 expect_out "NOTES.md"
 
+# The defect this exemption fixes: a tracked PNG is binary, not prose, and
+# its non-ASCII bytes are not the drift the gate exists to catch.
+repo="$(new_repo ascii_image_exempt)"
+printf '\x89PNG\r\n\x1a\n\x00\x01\x02\xff\xfe' > "${repo}/logo.png"
+git -C "$repo" add -A
+git -C "$repo" commit -qm "add logo"
+run "check-ascii exempts a tracked image binary" \
+    bash "${root}/scripts/check-ascii.sh" "$repo"
+expect_exit 0
+
+printf 'note: the fix is done \xe2\x80\x94 now go\n' > "${repo}/doc.md"
+git -C "$repo" add -A
+git -C "$repo" commit -qm "add non-ascii doc"
+run "check-ascii still fails on a tracked non-ASCII doc alongside the image" \
+    bash "${root}/scripts/check-ascii.sh" "$repo"
+expect_exit 1
+expect_out "doc.md"
+
 echo "harness-test: verify-receipts.sh"
 
 repo="$(new_repo vr_missing)"
