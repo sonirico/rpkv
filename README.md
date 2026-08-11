@@ -2,6 +2,10 @@
 
 Key-value reads over Redpanda topics, without duplicating values.
 
+[![CI](https://github.com/sonirico/rpkv/actions/workflows/ci.yml/badge.svg)](https://github.com/sonirico/rpkv/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Go](https://img.shields.io/badge/go-1.26.4-00ADD8.svg)](go.mod)
+
+## Why
+
 A topic already holds every value; what it cannot answer cheaply is
 "latest value for key X". rpkv is a pure-Go sidecar that maintains a
 secondary index `key -> (partition, offset)` in embedded Pebble -
@@ -11,22 +15,173 @@ fetching exactly that record from the log over the Kafka protocol
 value into RocksDB; rpkv makes the opposite trade: space over read
 latency, honestly declared.
 
-Design highlights (full spec in `docs/SPEC.md`, decisions in `docs/adr/`):
+Sweet spot: big values, modest read rates, on-prem.
 
-- **Zero value duplication** - the index stores pointers and checkpoints,
-  nothing else; the log stays the single source of truth.
-- **Compaction-resilient by construction** - pointers are logical offsets
-  (stable across compaction, which always preserves each key's latest
-  record); every fetch is verified, and the one real race (a pointer
-  superseded mid-compaction) is detected and resolved, never served
-  wrong.
-- **Disposable index** - destroy the Pebble dir and it rebuilds by
-  replaying the (compacted) log to an identical state.
-- **Pure Go, static binary** - `CGO_ENABLED=0`, franz-go + Pebble, no
-  external dependencies beyond your existing Redpanda.
+## How it works
 
-Sweet spot: big values, modest read rates, on-prem. Reads of keys whose
-segments were evicted to tiered storage pay object-storage latency - the
-benchmarks publish that number rather than hiding it.
+```
+producers --> Redpanda topic (compacted)
+                    |
+                    v
+             rpkv ingest (franz-go consumer)
+                    |
+                    v
+       Pebble index: key -> (partition, offset)
+       + per-partition checkpoints, one atomic batch
+                    |
+                    v
+  HTTP GET /v1/kv/{topic}/{key}
+       |
+       +--> index lookup --> single-record fetch at the
+            exact (partition, offset) from the broker
+            --> verified value returned
+```
 
-Work state: `docs/ROADMAP.md`. Dev setup: `just setup`, then `just check`.
+Fetch results are never trusted blindly: they pass a read verification
+protocol. If a pointer is superseded by compaction mid-read, rpkv detects
+it, re-resolves the key against the advancing checkpoint, and re-fetches -
+within a 2s budget - rather than ever serving a stale or wrong value.
+
+## Guarantees
+
+- No value is ever stored, cached or copied by rpkv - the index holds
+  pointers and checkpoints, the log holds values.
+- The index is a disposable projection - delete the data directory and it
+  rebuilds from the log to an identical state.
+- Index apply and checkpoint advance commit in one atomic Pebble batch -
+  a crash between them is unrepresentable; recovery is resume plus
+  idempotent re-apply.
+- Only the public Kafka protocol is used, never the broker's data
+  directory.
+
+**Proven, not promised.** The compaction contract suite
+(`internal/app/compaction_integration_test.go`) produces thousands of
+overwrites on an aggressively compacted topic, forces compaction
+repeatedly, restarts the process twice over the same index directory, and
+asserts every live key returns its latest value byte-identical and every
+tombstoned key 404s - black-box, over HTTP, against a real Redpanda.
+
+## Quickstart
+
+Install the dev toolchain and git hooks:
+
+```sh
+just setup
+```
+
+Start a single-node dev Redpanda on `localhost:19092`:
+
+```sh
+just redpanda-up
+```
+
+Run the binary. Each flag falls back to an environment variable (flag
+wins over env):
+
+```sh
+go run ./cmd/rpkv \
+  --brokers localhost:19092 \
+  --topics orders \
+  --data-dir ./rpkv-data \
+  --listen :8080
+```
+
+| Flag | Env fallback | Default |
+|---|---|---|
+| `--brokers` | `RPKV_BROKERS` | (required) |
+| `--topics` | `RPKV_TOPICS` | (required) |
+| `--data-dir` | `RPKV_DATA_DIR` | `./rpkv-data` |
+| `--listen` | `RPKV_LISTEN` | `:8080` |
+
+Produce a record with `rpk`:
+
+```sh
+rpk topic create orders --brokers localhost:19092
+rpk topic produce orders --brokers localhost:19092 --key user-42
+```
+
+Read it back:
+
+```sh
+curl -i http://localhost:8080/v1/kv/orders/user-42
+```
+
+```
+HTTP/1.1 200 OK
+X-Rpkv-Partition: 0
+X-Rpkv-Offset: 0
+X-Rpkv-Checkpoint: 0
+
+<value bytes>
+```
+
+## HTTP API
+
+`GET /v1/kv/{topic}/{key}` - `{key}` is percent-encoded raw bytes;
+`?key_encoding=base64url` accepts RFC 4648 base64url instead.
+
+| Route | Case | Response |
+|---|---|---|
+| `GET /v1/kv/{topic}/{key}` | Hit | `200`, body = raw value bytes; headers `X-Rpkv-Partition`, `X-Rpkv-Offset`, `X-Rpkv-Checkpoint` |
+| `GET /v1/kv/{topic}/{key}` | Key not in index | `404`, empty body |
+| `GET /v1/kv/{topic}/{key}` | Evicted by retention | `410` |
+| `GET /v1/kv/{topic}/{key}` | Superseded and catch-up did not resolve within budget | `503`, `Retry-After: 1` |
+| `GET /v1/kv/{topic}/{key}` | Topic not indexed by this instance | `404` with body `topic not indexed` |
+| `GET /healthz` | - | `200` always, JSON body with per-partition checkpoint and log-end lag |
+| `GET /metrics` | - | `200`, Prometheus exposition format |
+
+## Metrics
+
+| Metric | Type | Labels |
+|---|---|---|
+| `rpkv_fetch_outcomes_total` | Counter | `topic`, `outcome` |
+| `rpkv_supersede_retries_total` | Counter | none |
+| `rpkv_http_request_duration_seconds` | Histogram | none |
+| `rpkv_ingest_apply_batch_size` | Histogram | `topic` |
+| `rpkv_ingest_null_keys_skipped_total` | Counter | `topic` |
+| `rpkv_ingest_lag` | Gauge | `topic`, `partition` |
+
+## Status
+
+| Phase | State |
+|---|---|
+| 0 - Foundations | done |
+| 1 - Core (index, ingest, fetch, server, cmd, metrics) | done |
+| 2 - Resilience proof | in progress - compaction contract suite done; rebuild convergence and crash-consistency sweep pending |
+| 3 - Numbers and release | pending |
+
+Measured read p50/p99, rebuild rate and index bytes/key land under
+`docs/benchmarks/` with reproduce commands. No performance numbers are
+claimed until then.
+
+## Development
+
+```sh
+just check
+```
+
+Runs formatting, `go vet`, a `CGO_ENABLED=0` build, unit tests and the
+package-boundary checks.
+
+```sh
+just test-integration
+```
+
+Runs integration tests against a self-provisioned Redpanda (via `testit`);
+requires Docker.
+
+```
+index/              Pebble store: key->Pointer, checkpoints, atomic batches
+ingest/             topic consumer -> index apply (franz-go)
+fetch/              path-A reader: single-record fetch by (partition, offset)
+server/             query surface: Get(topic, key) -> value, pointer, checkpoint
+clock/              injectable Clock; sole production caller of time.Now/After
+metrics/            metrics facade public packages emit through; no implementation
+cmd/rpkv/           main: wiring owner, and nothing but wiring
+internal/           this binary's flags, env, process glue
+docs/benchmarks/    numbers on record, with the commands that reproduce them
+```
+
+## License
+
+MIT - see [LICENSE](LICENSE).
