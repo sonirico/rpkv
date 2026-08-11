@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -40,6 +41,17 @@ func newTestAppTopicName(t *testing.T) string {
 	require.NoError(t, err)
 
 	return fmt.Sprintf("app-e2e-%s", hex.EncodeToString(suffix))
+}
+
+// findMetricLine returns the line of a Prometheus exposition body starting
+// with prefix, with prefix stripped, and whether one was found.
+func findMetricLine(body, prefix string) (string, bool) {
+	for _, line := range strings.Split(body, "\n") {
+		if strings.HasPrefix(line, prefix) {
+			return strings.TrimPrefix(line, prefix), true
+		}
+	}
+	return "", false
 }
 
 func TestAppEndToEnd(t *testing.T) {
@@ -139,6 +151,30 @@ func TestAppEndToEnd(t *testing.T) {
 		checkpoint, err := strconv.ParseInt(resp.Header.Get("X-Rpkv-Checkpoint"), 10, 64)
 		require.NoError(t, err)
 		require.GreaterOrEqual(t, checkpoint, offset)
+	})
+
+	t.Run("metrics endpoint", func(t *testing.T) {
+		resp, err := client.Get(baseURL + "/metrics")
+		require.NoError(t, err)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.NoError(t, resp.Body.Close())
+
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		bodyStr := string(body)
+		require.Contains(t, bodyStr, "rpkv_fetch_outcomes_total")
+		require.Contains(t, bodyStr, "rpkv_http_request_duration_seconds")
+		require.Contains(t, bodyStr, "rpkv_ingest_apply_batch_size")
+		require.Contains(t, bodyStr, "rpkv_ingest_lag")
+
+		hitLine := fmt.Sprintf(`rpkv_fetch_outcomes_total{outcome="hit",topic="%s"} `, topic)
+		value, ok := findMetricLine(bodyStr, hitLine)
+		require.True(t, ok, "missing metric line %q in:\n%s", hitLine, bodyStr)
+
+		valueFloat, err := strconv.ParseFloat(value, 64)
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, valueFloat, 1.0)
 	})
 
 	t.Run("tombstoned key is 404", func(t *testing.T) {

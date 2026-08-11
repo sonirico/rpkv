@@ -188,6 +188,36 @@ required), `--data-dir`/`RPKV_DATA_DIR` (default `./rpkv-data`),
 SASL/TLS is a later roadmap task (env names will follow the protocol:
 `RPKV_SASL_USER`, not vendor names).
 
+### `metrics/`
+
+```go
+type Counter interface { Inc(); Add(delta float64) }
+type Gauge interface { Set(v float64) }
+type Histogram interface { Observe(v float64) }
+```
+
+The facade public packages (`fetch/`, `ingest/`, `server/`) see through their
+`Metrics` structs and `WithMetrics` options - structurally matching
+Prometheus's own `Counter`/`Gauge`/`Histogram` contracts so a Prometheus
+value satisfies them with no adapter. Prometheus itself lives only in
+`internal/promsink` (wiring); phase 3's benchmarks consume the same facade
+without prometheus. Six frozen metric names:
+
+| Metric | Type | Labels |
+|---|---|---|
+| `rpkv_fetch_outcomes_total` | Counter | `topic`, `outcome` (`hit`, `superseded`, `evicted`, `error`) |
+| `rpkv_supersede_retries_total` | Counter | none |
+| `rpkv_http_request_duration_seconds` | Histogram, `prometheus.DefBuckets` | none |
+| `rpkv_ingest_apply_batch_size` | Histogram, buckets `1,10,50,100,500,1000,5000` | `topic` |
+| `rpkv_ingest_null_keys_skipped_total` | Counter | `topic` |
+| `rpkv_ingest_lag` | Gauge | `topic`, `partition` |
+
+`rpkv_ingest_lag` is computed at scrape time by a `prometheus.Collector`
+over the same checkpoint and log-end-offset data `GET /healthz` reports
+(`max(0, logEnd-checkpoint-1)` per partition), not updated on the ingest
+hot path. `GET /metrics` serves a private `*prometheus.Registry` - never
+the global default registry.
+
 ### Package layout
 
 ```

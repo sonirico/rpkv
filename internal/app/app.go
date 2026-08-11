@@ -24,6 +24,7 @@ import (
 	"github.com/sonirico/rpkv/ingest"
 	"github.com/sonirico/rpkv/internal/config"
 	"github.com/sonirico/rpkv/internal/offsets"
+	"github.com/sonirico/rpkv/internal/promsink"
 	"github.com/sonirico/rpkv/server"
 )
 
@@ -38,12 +39,13 @@ type topicRuntime struct {
 
 // App is the wired rpkv process: per-topic pipelines plus the HTTP server.
 type App struct {
-	cfg       config.Config
-	logger    *slog.Logger
-	server    *server.Server
-	topics    []*topicRuntime
-	addrCh    chan string
-	closeOnce sync.Once
+	cfg            config.Config
+	logger         *slog.Logger
+	server         *server.Server
+	metricsHandler http.Handler
+	topics         []*topicRuntime
+	addrCh         chan string
+	closeOnce      sync.Once
 }
 
 // New opens each topic's index, wires its ingest and fetch clients and
@@ -51,6 +53,11 @@ type App struct {
 func New(cfg config.Config, logger *slog.Logger, clk clock.Clock) (*App, error) {
 	var topics []*topicRuntime
 	backends := make(map[string]server.Backend, len(cfg.Topics))
+
+	sinks, err := promsink.New(logger)
+	if err != nil {
+		return nil, fmt.Errorf("app: metrics sinks: %w", err)
+	}
 
 	for _, topic := range cfg.Topics {
 		db, err := pebble.Open(filepath.Join(cfg.DataDir, "topics", topic), &pebble.Options{})
@@ -86,9 +93,27 @@ func New(cfg config.Config, logger *slog.Logger, clk clock.Clock) (*App, error) 
 			return nil, fmt.Errorf("app: fetch client %q: %w", topic, err)
 		}
 
-		ing := ingest.New(ingestClient, ix, topic, logger)
-		f := fetch.New(fetchClient, topic)
+		ing := ingest.New(
+			ingestClient,
+			ix,
+			topic,
+			logger,
+			ingest.WithMetrics(sinks.IngestMetrics(topic)),
+		)
+		f := fetch.New(fetchClient, topic, fetch.WithMetrics(sinks.FetchMetrics(topic)))
 		src := offsets.NewSource(kadm.NewClient(fetchClient), topic)
+
+		if err := sinks.RegisterLag(topic, ix, src); err != nil {
+			fetchClient.Close()
+			ingestClient.Close()
+			if closeErr := ix.Close(); closeErr != nil {
+				logger.Error("close partial app", "error", closeErr)
+			}
+			if closeErr := closeTopicRuntimes(topics); closeErr != nil {
+				logger.Error("close partial app", "error", closeErr)
+			}
+			return nil, fmt.Errorf("app: register lag collector %q: %w", topic, err)
+		}
 
 		topics = append(topics, &topicRuntime{
 			db:           db,
@@ -101,14 +126,15 @@ func New(cfg config.Config, logger *slog.Logger, clk clock.Clock) (*App, error) 
 		backends[topic] = server.NewBackend(ix, f, src)
 	}
 
-	srv := server.New(backends, clk, logger)
+	srv := server.New(backends, clk, logger, server.WithMetrics(sinks.ServerMetrics()))
 
 	return &App{
-		cfg:    cfg,
-		logger: logger,
-		server: srv,
-		topics: topics,
-		addrCh: make(chan string, 1),
+		cfg:            cfg,
+		logger:         logger,
+		server:         srv,
+		metricsHandler: sinks.Handler(),
+		topics:         topics,
+		addrCh:         make(chan string, 1),
 	}, nil
 }
 
@@ -124,7 +150,11 @@ func (a *App) Run(ctx context.Context) error {
 
 	a.addrCh <- ln.Addr().String()
 
-	httpServer := &http.Server{Handler: a.server}
+	mux := http.NewServeMux()
+	mux.Handle("/", a.server)
+	mux.Handle("GET /metrics", a.metricsHandler)
+
+	httpServer := &http.Server{Handler: mux}
 
 	errCh := make(chan error, len(a.topics)+1)
 	for _, rt := range a.topics {

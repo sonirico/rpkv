@@ -9,6 +9,11 @@ import (
 
 // handleKV serves GET /v1/kv/{topic}/{key} per SPEC's response table.
 func (s *Server) handleKV(w http.ResponseWriter, r *http.Request) {
+	start := s.clk.Now()
+	defer func() {
+		s.metrics.RequestDuration.Observe(s.clk.Now().Sub(start).Seconds())
+	}()
+
 	b, ok := s.backends[r.PathValue("topic")]
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
@@ -97,6 +102,7 @@ func (s *Server) resolveSuperseded(
 			return
 		case <-s.clk.After(checkpointPollInterval):
 		}
+		s.metrics.SupersedeRetries.Inc()
 
 		cp, err := b.index.Checkpoint(ptr.Partition)
 		if err != nil {

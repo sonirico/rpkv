@@ -14,24 +14,36 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 
 	"github.com/sonirico/rpkv/index"
+	"github.com/sonirico/rpkv/metrics"
 )
 
 // Fetcher resolves a key's value from the log by fetching the single
 // record at its index pointer, over a client dedicated to this purpose.
 type Fetcher struct {
-	client *kgo.Client
-	topic  string
-	mu     sync.Mutex
+	client  *kgo.Client
+	topic   string
+	mu      sync.Mutex
+	metrics Metrics
 }
 
 // New wires an already-configured kgo client and topic into a
 // Fetcher. It does not open or configure the client - that is the
 // caller's responsibility.
-func New(client *kgo.Client, topic string) *Fetcher {
-	return &Fetcher{
+func New(client *kgo.Client, topic string, opts ...Option) *Fetcher {
+	f := &Fetcher{
 		client: client,
 		topic:  topic,
+		metrics: Metrics{
+			Hits:       metrics.NewNoopCounter(),
+			Superseded: metrics.NewNoopCounter(),
+			Evicted:    metrics.NewNoopCounter(),
+			Errors:     metrics.NewNoopCounter(),
+		},
 	}
+	for _, opt := range opts {
+		opt(f)
+	}
+	return f
 }
 
 // FetchAt fetches the single record at ptr and verifies it against key
@@ -53,6 +65,7 @@ func (f *Fetcher) FetchAt(ctx context.Context, ptr index.Pointer, key []byte) (R
 		}
 		if errs := fetches.Errors(); len(errs) > 0 {
 			e := errs[0]
+			f.metrics.Errors.Inc()
 			return Result{}, fmt.Errorf("fetch: poll %s/%d: %w", e.Topic, e.Partition, e.Err)
 		}
 
@@ -67,6 +80,14 @@ func (f *Fetcher) FetchAt(ctx context.Context, ptr index.Pointer, key []byte) (R
 			res, resolved = verifyFetch(p.Records, p.LogStartOffset, ptr, key)
 		})
 		if resolved {
+			switch {
+			case res.Evicted:
+				f.metrics.Evicted.Inc()
+			case res.Superseded:
+				f.metrics.Superseded.Inc()
+			default:
+				f.metrics.Hits.Inc()
+			}
 			return res, nil
 		}
 	}

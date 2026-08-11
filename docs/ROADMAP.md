@@ -84,7 +84,7 @@ never silently becomes `[x]`.
       tombstone -> 404; `CGO_ENABLED=0 go build ./...` succeeds and is
       asserted in CI.
 
-- [ ] **`metrics/` facade + `GET /metrics`.** Counters/histograms behind
+- [x] **`metrics/` facade + `GET /metrics`.** Counters/histograms behind
       private interfaces in the consuming packages (fetch outcomes
       including superseded/evicted, supersede retries, ingest lag per
       partition, apply batch sizes); the prometheus implementation lives
