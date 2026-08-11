@@ -46,9 +46,9 @@ type App struct {
 	closeOnce sync.Once
 }
 
-// NewApp opens each topic's index, wires its ingest and fetch clients and
+// New opens each topic's index, wires its ingest and fetch clients and
 // assembles the HTTP server, per cfg.
-func NewApp(cfg config.Config, logger *slog.Logger, clk clock.Clock) (*App, error) {
+func New(cfg config.Config, logger *slog.Logger, clk clock.Clock) (*App, error) {
 	var topics []*topicRuntime
 	backends := make(map[string]server.Backend, len(cfg.Topics))
 
@@ -61,7 +61,7 @@ func NewApp(cfg config.Config, logger *slog.Logger, clk clock.Clock) (*App, erro
 			return nil, fmt.Errorf("app: open pebble %q: %w", topic, err)
 		}
 
-		ix := index.NewIndex(db)
+		ix := index.New(db)
 
 		ingestClient, err := kgo.NewClient(kgo.SeedBrokers(cfg.Brokers...))
 		if err != nil {
@@ -86,8 +86,8 @@ func NewApp(cfg config.Config, logger *slog.Logger, clk clock.Clock) (*App, erro
 			return nil, fmt.Errorf("app: fetch client %q: %w", topic, err)
 		}
 
-		ing := ingest.NewIngester(ingestClient, ix, topic, logger)
-		f := fetch.NewFetcher(fetchClient, topic)
+		ing := ingest.New(ingestClient, ix, topic, logger)
+		f := fetch.New(fetchClient, topic)
 		src := offsets.NewSource(kadm.NewClient(fetchClient), topic)
 
 		topics = append(topics, &topicRuntime{
@@ -101,7 +101,7 @@ func NewApp(cfg config.Config, logger *slog.Logger, clk clock.Clock) (*App, erro
 		backends[topic] = server.NewBackend(ix, f, src)
 	}
 
-	srv := server.NewServer(backends, clk, logger)
+	srv := server.New(backends, clk, logger)
 
 	return &App{
 		cfg:    cfg,

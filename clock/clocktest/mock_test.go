@@ -14,10 +14,10 @@ import (
 
 var testStart = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
-func newTestMockClock(t *testing.T) *clocktest.MockClock {
+func newTestMock(t *testing.T) *clocktest.Mock {
 	t.Helper()
 
-	return clocktest.NewMockClock(testStart)
+	return clocktest.NewMock(testStart)
 }
 
 func requireFired(t *testing.T, ch <-chan time.Time, want time.Time) {
@@ -41,17 +41,17 @@ func requireNotFired(t *testing.T, ch <-chan time.Time) {
 	}
 }
 
-func TestMockClock_Now(t *testing.T) {
+func TestMock_Now(t *testing.T) {
 	t.Run("returns the start time before any Advance", func(t *testing.T) {
 		t.Parallel()
 
-		sut := newTestMockClock(t)
+		sut := newTestMock(t)
 
 		assert.Equal(t, testStart, sut.Now())
 	})
 }
 
-func TestMockClock_Advance(t *testing.T) {
+func TestMock_Advance(t *testing.T) {
 	type testCase struct {
 		name  string
 		steps []time.Duration
@@ -75,7 +75,7 @@ func TestMockClock_Advance(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			sut := newTestMockClock(t)
+			sut := newTestMock(t)
 
 			for _, step := range tc.steps {
 				sut.Advance(step)
@@ -86,11 +86,11 @@ func TestMockClock_Advance(t *testing.T) {
 	}
 }
 
-func TestMockClock_After(t *testing.T) {
+func TestMock_After(t *testing.T) {
 	t.Run("does not fire before Advance reaches the deadline", func(t *testing.T) {
 		t.Parallel()
 
-		sut := newTestMockClock(t)
+		sut := newTestMock(t)
 		ch := sut.After(10 * time.Second)
 
 		sut.Advance(5 * time.Second)
@@ -101,7 +101,7 @@ func TestMockClock_After(t *testing.T) {
 	t.Run("fires when Advance reaches the deadline exactly", func(t *testing.T) {
 		t.Parallel()
 
-		sut := newTestMockClock(t)
+		sut := newTestMock(t)
 		deadline := testStart.Add(10 * time.Second)
 		ch := sut.After(10 * time.Second)
 
@@ -113,7 +113,7 @@ func TestMockClock_After(t *testing.T) {
 	t.Run("fires when Advance passes the deadline", func(t *testing.T) {
 		t.Parallel()
 
-		sut := newTestMockClock(t)
+		sut := newTestMock(t)
 		deadline := testStart.Add(10 * time.Second)
 		ch := sut.After(10 * time.Second)
 
@@ -127,7 +127,7 @@ func TestMockClock_After(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
-			sut := newTestMockClock(t)
+			sut := newTestMock(t)
 
 			ch := sut.After(0)
 
@@ -138,7 +138,7 @@ func TestMockClock_After(t *testing.T) {
 	t.Run("one Advance fires only the waiters due, leaves the rest pending", func(t *testing.T) {
 		t.Parallel()
 
-		sut := newTestMockClock(t)
+		sut := newTestMock(t)
 		soon := sut.After(5 * time.Second)
 		later := sut.After(20 * time.Second)
 
@@ -152,7 +152,7 @@ func TestMockClock_After(t *testing.T) {
 		t.Parallel()
 
 		start := time.Unix(0, 0)
-		sut := clocktest.NewMockClock(start)
+		sut := clocktest.NewMock(start)
 		notify := make(chan struct{})
 		sut.AfterNotify(notify)
 		fired := make(chan time.Time, 1)
@@ -176,7 +176,7 @@ func TestMockClock_After(t *testing.T) {
 	t.Run("immediate fire does not notify", func(t *testing.T) {
 		t.Parallel()
 
-		sut := newTestMockClock(t)
+		sut := newTestMock(t)
 		notify := make(chan struct{}, 1)
 		sut.AfterNotify(notify)
 
@@ -196,9 +196,9 @@ func TestMockClock_After(t *testing.T) {
 	})
 }
 
-func TestMockClock_ConcurrentAccess(t *testing.T) {
+func TestMock_ConcurrentAccess(t *testing.T) {
 	t.Run("Now, After and Advance are race-safe under concurrent use", func(t *testing.T) {
-		sut := newTestMockClock(t)
+		sut := newTestMock(t)
 
 		const goroutines = 50
 		// Now is only ever read concurrently with Advance(time.Millisecond)

@@ -41,7 +41,7 @@ const (
 
 // testFetchFixture wires the unique topic, on-disk Pebble index, a running
 // Ingester feeding it, and a Fetcher on its own dedicated client, per
-// fetch.NewFetcher's requirement that its client never be shared with an
+// fetch.New's requirement that its client never be shared with an
 // Ingester.
 type testFetchFixture struct {
 	topic    string
@@ -87,14 +87,14 @@ func newTestFetchFixture(
 
 	db, err := pebble.Open(t.TempDir(), &pebble.Options{})
 	require.NoError(t, err)
-	ix := index.NewIndex(db)
+	ix := index.New(db)
 	t.Cleanup(func() {
 		assert.NoError(t, ix.Close())
 	})
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	ingestClient := newTestFetchClient(t)
-	ingester := ingest.NewIngester(ingestClient, ix, topic, logger)
+	ingester := ingest.New(ingestClient, ix, topic, logger)
 
 	runCtx, runCancel := context.WithCancel(context.Background())
 	runErr := make(chan error, 1)
@@ -108,7 +108,7 @@ func newTestFetchFixture(
 	})
 
 	fetchClient := newTestFetchClient(t)
-	fetcher := fetch.NewFetcher(fetchClient, topic)
+	fetcher := fetch.New(fetchClient, topic)
 
 	producer := newTestFetchClient(t)
 

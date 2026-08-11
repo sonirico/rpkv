@@ -26,10 +26,10 @@ type Ingester struct {
 	skippedNullKeys atomic.Int64
 }
 
-// NewIngester wires an already-configured kgo client and index into an
+// New wires an already-configured kgo client and index into an
 // Ingester. It does not open or configure either - that is the caller's
 // responsibility.
-func NewIngester(
+func New(
 	client *kgo.Client,
 	index *index.Index,
 	topic string,
