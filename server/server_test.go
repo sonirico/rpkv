@@ -249,7 +249,11 @@ func TestServerGet(t *testing.T) {
 
 	t.Run("hit observes one request duration sample", func(t *testing.T) {
 		requestDuration := metricstest.NewHistogram()
-		srv, _ := newTestServer(t, hitBackends, WithMetrics(Metrics{RequestDuration: requestDuration}))
+		srv, _ := newTestServer(
+			t,
+			hitBackends,
+			WithMetrics(Metrics{RequestDuration: requestDuration}),
+		)
 		req := httptest.NewRequest(http.MethodGet, "/v1/kv/orders/k1", nil)
 		rec := httptest.NewRecorder()
 
@@ -280,7 +284,11 @@ func TestServerGetSupersede(t *testing.T) {
 			),
 		}
 		supersedeRetries := metricstest.NewCounter()
-		srv, clk := newTestServer(t, backends, WithMetrics(Metrics{SupersedeRetries: supersedeRetries}))
+		srv, clk := newTestServer(
+			t,
+			backends,
+			WithMetrics(Metrics{SupersedeRetries: supersedeRetries}),
+		)
 		notify := make(chan struct{})
 		clk.AfterNotify(notify)
 
@@ -329,7 +337,11 @@ func TestServerGetSupersede(t *testing.T) {
 			),
 		}
 		supersedeRetries := metricstest.NewCounter()
-		srv, clk := newTestServer(t, backends, WithMetrics(Metrics{SupersedeRetries: supersedeRetries}))
+		srv, clk := newTestServer(
+			t,
+			backends,
+			WithMetrics(Metrics{SupersedeRetries: supersedeRetries}),
+		)
 		notify := make(chan struct{})
 		clk.AfterNotify(notify)
 
@@ -383,7 +395,11 @@ func TestServerGetSupersede(t *testing.T) {
 			),
 		}
 		supersedeRetries := metricstest.NewCounter()
-		srv, clk := newTestServer(t, backends, WithMetrics(Metrics{SupersedeRetries: supersedeRetries}))
+		srv, clk := newTestServer(
+			t,
+			backends,
+			WithMetrics(Metrics{SupersedeRetries: supersedeRetries}),
+		)
 		notify := make(chan struct{})
 		clk.AfterNotify(notify)
 

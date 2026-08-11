@@ -28,7 +28,12 @@ type Server struct {
 
 // New wires the per-topic backends, clock and logger into a Server
 // and registers its routes.
-func New(backends map[string]Backend, clk clock.Clock, logger *slog.Logger, opts ...Option) *Server {
+func New(
+	backends map[string]Backend,
+	clk clock.Clock,
+	logger *slog.Logger,
+	opts ...Option,
+) *Server {
 	s := &Server{
 		backends: backends,
 		clk:      clk,
