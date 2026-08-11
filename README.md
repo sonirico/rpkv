@@ -75,6 +75,14 @@ Start a single-node dev Redpanda on `localhost:19092`:
 just redpanda-up
 ```
 
+Create the topic before starting rpkv - rpkv fails fast at startup if
+an indexed topic does not exist yet. The dev container ships `rpk`, so
+no local install is needed:
+
+```sh
+docker exec rpkv-redpanda rpk topic create orders
+```
+
 Run the binary. Each flag falls back to an environment variable (flag
 wins over env):
 
@@ -93,11 +101,10 @@ go run ./cmd/rpkv \
 | `--data-dir` | `RPKV_DATA_DIR` | `./rpkv-data` |
 | `--listen` | `RPKV_LISTEN` | `:8080` |
 
-Produce a record with `rpk`:
+Produce a record:
 
 ```sh
-rpk topic create orders --brokers localhost:19092
-rpk topic produce orders --brokers localhost:19092 --key user-42
+printf 'hello-value\n' | docker exec -i rpkv-redpanda rpk topic produce orders --key user-42
 ```
 
 Read it back:
@@ -112,7 +119,7 @@ X-Rpkv-Partition: 0
 X-Rpkv-Offset: 0
 X-Rpkv-Checkpoint: 0
 
-<value bytes>
+hello-value
 ```
 
 ## HTTP API
