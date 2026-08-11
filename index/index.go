@@ -29,9 +29,9 @@ type Index struct {
 	closeOnce sync.Once
 }
 
-// NewIndex wires an already-opened Pebble DB into an Index. It does not
+// New wires an already-opened Pebble DB into an Index. It does not
 // open or configure the DB - that is the caller's responsibility.
-func NewIndex(db *pebble.DB) *Index {
+func New(db *pebble.DB) *Index {
 	return &Index{db: db}
 }
 

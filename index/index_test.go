@@ -22,7 +22,7 @@ func newTestIndex(tb testing.TB) testIndexFixture {
 	db, err := pebble.Open("", &pebble.Options{FS: vfs.NewMem()})
 	require.NoError(tb, err)
 
-	ix := index.NewIndex(db)
+	ix := index.New(db)
 	tb.Cleanup(func() {
 		assert.NoError(tb, ix.Close())
 	})
@@ -239,7 +239,7 @@ func newTestCrashedIndex(t *testing.T) testCrashedIndexFixture {
 
 	db1, err := pebble.Open("", opts)
 	require.NoError(t, err)
-	ix1 := index.NewIndex(db1)
+	ix1 := index.New(db1)
 
 	surviving := index.Entry{Key: []byte("k1"), Pointer: index.Pointer{Partition: 0, Offset: 10}}
 	require.NoError(t, ix1.Apply([]index.Entry{surviving}, map[int32]int64{0: 10}))
@@ -253,7 +253,7 @@ func newTestCrashedIndex(t *testing.T) testCrashedIndexFixture {
 
 	db2, err := pebble.Open("", opts)
 	require.NoError(t, err)
-	ix2 := index.NewIndex(db2)
+	ix2 := index.New(db2)
 	t.Cleanup(func() {
 		assert.NoError(t, ix2.Close())
 	})

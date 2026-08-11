@@ -79,7 +79,7 @@ func TestAppEndToEnd(t *testing.T) {
 	}
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	a, err := app.NewApp(cfg, logger, clock.NewSystemClock())
+	a, err := app.New(cfg, logger, clock.NewSystem())
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, a.Close())

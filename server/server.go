@@ -24,9 +24,9 @@ type Server struct {
 	mux      *http.ServeMux
 }
 
-// NewServer wires the per-topic backends, clock and logger into a Server
+// New wires the per-topic backends, clock and logger into a Server
 // and registers its routes.
-func NewServer(backends map[string]Backend, clk clock.Clock, logger *slog.Logger) *Server {
+func New(backends map[string]Backend, clk clock.Clock, logger *slog.Logger) *Server {
 	s := &Server{
 		backends: backends,
 		clk:      clk,
