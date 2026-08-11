@@ -17,6 +17,11 @@ latency, honestly declared.
 
 Sweet spot: big values, modest read rates, on-prem.
 
+The wrong fit: hot read paths or small values. Every read pays a
+broker round-trip (11.1 ms p50 measured, see
+[Benchmarks](#benchmarks)); if you read far more often than you can
+afford that, a value-materializing store is the better trade.
+
 ## How it works
 
 ```
@@ -75,6 +80,14 @@ Start a single-node dev Redpanda on `localhost:19092`:
 just redpanda-up
 ```
 
+Create the topic before starting rpkv - rpkv fails fast at startup if
+an indexed topic does not exist yet. The dev container ships `rpk`, so
+no local install is needed:
+
+```sh
+docker exec rpkv-redpanda rpk topic create orders
+```
+
 Run the binary. Each flag falls back to an environment variable (flag
 wins over env):
 
@@ -93,11 +106,10 @@ go run ./cmd/rpkv \
 | `--data-dir` | `RPKV_DATA_DIR` | `./rpkv-data` |
 | `--listen` | `RPKV_LISTEN` | `:8080` |
 
-Produce a record with `rpk`:
+Produce a record:
 
 ```sh
-rpk topic create orders --brokers localhost:19092
-rpk topic produce orders --brokers localhost:19092 --key user-42
+printf 'hello-value\n' | docker exec -i rpkv-redpanda rpk topic produce orders --key user-42
 ```
 
 Read it back:
@@ -112,7 +124,7 @@ X-Rpkv-Partition: 0
 X-Rpkv-Offset: 0
 X-Rpkv-Checkpoint: 0
 
-<value bytes>
+hello-value
 ```
 
 ## HTTP API
@@ -140,6 +152,23 @@ X-Rpkv-Checkpoint: 0
 | `rpkv_ingest_apply_batch_size` | Histogram | `topic` |
 | `rpkv_ingest_null_keys_skipped_total` | Counter | `topic` |
 | `rpkv_ingest_lag` | Gauge | `topic`, `partition` |
+
+## Deployment
+
+Replicas are fully independent: each instance consumes the indexed
+topics with its own client (direct partition assignment, no consumer
+group) and owns a private Pebble index. Horizontal read scaling is N
+instances behind a load balancer. Failover and recovery are the same
+operation: start a fresh instance and let it rebuild from the log
+(~996k keys/s measured), or restart on the same volume and resume
+from the checkpoint.
+
+There is no replication protocol and no cross-replica coordination:
+two replicas can serve different checkpoints, so there is no
+read-your-writes and no monotonic-reads guarantee across instances.
+Staleness is per-replica, bounded by ingest lag, and observable as
+`rpkv_ingest_lag`. Rationale and accepted costs:
+[ADR-008](docs/adr/008-deployment-replication.md).
 
 ## Benchmarks
 
