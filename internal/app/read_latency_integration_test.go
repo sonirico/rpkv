@@ -12,7 +12,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math"
 	"math/rand"
 	"net/http"
 	"os"
@@ -50,17 +49,6 @@ type benchResult struct {
 	MinMs     float64 `json:"min_ms"`
 	MaxMs     float64 `json:"max_ms"`
 	MeanMs    float64 `json:"mean_ms"`
-}
-
-// percentile returns the nearest-rank q-th percentile (0-100) of a sorted
-// samples slice.
-func percentile(sorted []time.Duration, q float64) time.Duration {
-	idx := int(math.Ceil(q/100*float64(len(sorted)))) - 1
-	return sorted[idx]
-}
-
-func toMillis(d time.Duration) float64 {
-	return float64(d) / float64(time.Millisecond)
 }
 
 func TestReadLatencyBenchmark(t *testing.T) {
