@@ -23,6 +23,13 @@ if [[ -n "$(docker ps -aq --filter name=^rpkv-redpanda$)" ]]; then
     exit 1
 fi
 
+for port in 19092 8080; do
+    if ss -ltn | grep -qE "[:.]${port}\b"; then
+        echo "release-check: port ${port} is already in use - a fresh validation needs it free" >&2
+        exit 1
+    fi
+done
+
 CLONE_DIR=""
 RPKV_PID=""
 
