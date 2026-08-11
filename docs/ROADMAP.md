@@ -71,13 +71,13 @@ never silently becomes `[x]`.
       `max.compaction.lag.ms`/segment size), fetch with the stale v1
       pointer -> `Superseded=true`; (c) *evicted*: delete-retention topic,
       pointer below log start -> `Evicted=true`.
-- [ ] **`server/`** per SPEC section `server/`: routes, status codes, headers,
+- [x] **`server/`** per SPEC section `server/`: routes, status codes, headers,
       2s supersede budget through `clock.Clock`.
       Verification: unit tests with fake index/fetcher covering every row
       of the SPEC response table, including supersede-then-resolve and
       supersede-then-503 via mock clock `Advance`; no `time.Sleep`
       anywhere.
-- [ ] **`cmd/rpkv` + `internal/`** wiring per SPEC section configuration -
+- [x] **`cmd/rpkv` + `internal/`** wiring per SPEC section configuration -
       wiring owner only, constructors receive dependencies.
       Verification: end-to-end integration test - start Redpanda, start
       rpkv, produce, `GET` returns the value with correct headers;
