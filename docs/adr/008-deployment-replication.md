@@ -65,3 +65,12 @@ Each replica pays its own full ingest bandwidth against the broker: N
 replicas means N times the fetch and consumer traffic of a single
 instance, since none of them share a subscription or a cache of consumed
 records.
+
+## Reversal criterion
+
+If real deployments demand cross-replica consistency guarantees -
+read-your-writes or monotonic reads across instances - that a client-side
+sticky-routing policy cannot satisfy, this ADR is reopened. The answer is
+revisiting the deployment model, never a replication protocol bolted onto
+the index: ADR-001 already forbids the index becoming a second source of
+truth, and a cross-replica protocol would make it exactly that.
