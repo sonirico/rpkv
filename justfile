@@ -166,6 +166,12 @@ test-integration:
 bench-read:
     RPKV_BENCH=1 RPKV_BENCH_OUT={{justfile_directory()}}/docs/benchmarks/read-latency.json go test -tags integration -p 1 -run TestReadLatencyBenchmark ./internal/app -v -count=1
 
+bench-index-size:
+    RPKV_BENCH=1 RPKV_BENCH_OUT={{justfile_directory()}}/docs/benchmarks/index-size.json go test -run TestIndexSizeBenchmark ./index -v -count=1
+
+bench-rebuild:
+    RPKV_BENCH=1 RPKV_BENCH_OUT={{justfile_directory()}}/docs/benchmarks/rebuild-rate.json go test -tags integration -p 1 -run TestRebuildRateBenchmark ./internal/app -v -count=1
+
 # Public packages must not import internal/ (ADR-002's layout rule).
 boundaries-check:
     bash scripts/check-boundaries.sh .
