@@ -29,6 +29,7 @@ import (
 const (
 	compactionKeySpace           = 100
 	compactionOverwritesPerRound = 1500
+	compactionOverwriteChunkSize = 100
 	compactionTombstonesPerRound = 15
 	compactionFillerPerRound     = 400
 	compactionFillerValueSize    = 512
@@ -74,6 +75,59 @@ func newTestCompactionTopic(t *testing.T, admin *kadm.Client) string {
 	}
 
 	return topic
+}
+
+// produceRecords produces records synchronously with a 60s timeout and
+// requires every result to be error-free. Shared by every produce call
+// site in this test (overwrites, tombstones, filler, and the final flush).
+func produceRecords(t *testing.T, producer *kgo.Client, records ...*kgo.Record) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	results := producer.ProduceSync(ctx, records...)
+	for _, r := range results {
+		require.NoError(t, r.Err)
+	}
+}
+
+// produceChunked builds n records for topic in chunks of chunkSize, keying
+// and valuing each record via keyFn/valueFn, and produces each chunk via
+// produceRecords. It returns the keys and values in production order.
+func produceChunked(
+	t *testing.T,
+	producer *kgo.Client,
+	topic string,
+	n, chunkSize int,
+	keyFn func(i int) string,
+	valueFn func(i int) []byte,
+) (keys []string, values [][]byte) {
+	t.Helper()
+
+	keys = make([]string, 0, n)
+	values = make([][]byte, 0, n)
+
+	for start := 0; start < n; start += chunkSize {
+		end := start + chunkSize
+		if end > n {
+			end = n
+		}
+
+		records := make([]*kgo.Record, 0, end-start)
+		for i := start; i < end; i++ {
+			key := keyFn(i)
+			value := valueFn(i)
+
+			records = append(records, &kgo.Record{Topic: topic, Key: []byte(key), Value: value})
+			keys = append(keys, key)
+			values = append(values, value)
+		}
+
+		produceRecords(t, producer, records...)
+	}
+
+	return keys, values
 }
 
 // startTestApp wires and runs an App against cfg, returning its base HTTP
@@ -206,36 +260,19 @@ func TestCompactionContract(t *testing.T) {
 	seq := 0
 
 	for round := 0; round < compactionRounds; round++ {
-		for start := 0; start < compactionOverwritesPerRound; start += 100 {
-			end := start + 100
-			if end > compactionOverwritesPerRound {
-				end = compactionOverwritesPerRound
-			}
-
-			records := make([]*kgo.Record, 0, end-start)
-			keys := make([]string, 0, end-start)
-			values := make([][]byte, 0, end-start)
-			for i := start; i < end; i++ {
-				key := fmt.Sprintf("k-%04d", rng.Intn(compactionKeySpace))
+		overwriteKeys, overwriteValues := produceChunked(
+			t, producer, topic,
+			compactionOverwritesPerRound, compactionOverwriteChunkSize,
+			func(i int) string { return fmt.Sprintf("k-%04d", rng.Intn(compactionKeySpace)) },
+			func(i int) []byte {
 				value := []byte(fmt.Sprintf("r%d-s%d", round, seq))
 				seq++
-
-				records = append(records, &kgo.Record{Topic: topic, Key: []byte(key), Value: value})
-				keys = append(keys, key)
-				values = append(values, value)
-			}
-
-			produceCtx, produceCancel := context.WithTimeout(context.Background(), 60*time.Second)
-			results := producer.ProduceSync(produceCtx, records...)
-			produceCancel()
-			for _, r := range results {
-				require.NoError(t, r.Err)
-			}
-
-			for i, key := range keys {
-				live[key] = values[i]
-				delete(tombstoned, key)
-			}
+				return value
+			},
+		)
+		for i, key := range overwriteKeys {
+			live[key] = overwriteValues[i]
+			delete(tombstoned, key)
 		}
 
 		tried := make(map[string]struct{})
@@ -250,53 +287,31 @@ func TestCompactionContract(t *testing.T) {
 				continue
 			}
 
-			tombstoneCtx, tombstoneCancel := context.WithTimeout(
-				context.Background(),
-				60*time.Second,
-			)
-			result := producer.ProduceSync(
-				tombstoneCtx,
-				&kgo.Record{Topic: topic, Key: []byte(key), Value: nil},
-			)
-			tombstoneCancel()
-			require.NoError(t, result.FirstErr())
+			produceRecords(t, producer, &kgo.Record{Topic: topic, Key: []byte(key), Value: nil})
 
 			delete(live, key)
 			tombstoned[key] = struct{}{}
 			tombstonedThisRound++
 		}
+		require.Equal(
+			t, compactionTombstonesPerRound, tombstonedThisRound,
+			"round %d: not enough live keys to tombstone", round,
+		)
 
 		fillerPrefix := fmt.Sprintf("fill-r%d", round)
-		for start := 0; start < compactionFillerPerRound; start += compactionFillerChunkSize {
-			end := start + compactionFillerChunkSize
-			if end > compactionFillerPerRound {
-				end = compactionFillerPerRound
-			}
-
-			records := make([]*kgo.Record, 0, end-start)
-			keys := make([]string, 0, end-start)
-			values := make([][]byte, 0, end-start)
-			for i := start; i < end; i++ {
+		fillerKeys, fillerValues := produceChunked(
+			t, producer, topic,
+			compactionFillerPerRound, compactionFillerChunkSize,
+			func(i int) string { return fmt.Sprintf("%s-%04d", fillerPrefix, i) },
+			func(i int) []byte {
 				value := make([]byte, compactionFillerValueSize)
 				_, err := cryptorand.Read(value)
 				require.NoError(t, err)
-
-				key := fmt.Sprintf("%s-%04d", fillerPrefix, i)
-				records = append(records, &kgo.Record{Topic: topic, Key: []byte(key), Value: value})
-				keys = append(keys, key)
-				values = append(values, value)
-			}
-
-			fillerCtx, fillerCancel := context.WithTimeout(context.Background(), 60*time.Second)
-			results := producer.ProduceSync(fillerCtx, records...)
-			fillerCancel()
-			for _, r := range results {
-				require.NoError(t, r.Err)
-			}
-
-			for i, key := range keys {
-				live[key] = values[i]
-			}
+				return value
+			},
+		)
+		for i, key := range fillerKeys {
+			live[key] = fillerValues[i]
 		}
 
 		if round == 0 {
@@ -311,31 +326,24 @@ func TestCompactionContract(t *testing.T) {
 		assertModel(t, client, baseURL, topic, live, tombstoned)
 	}
 
-	finalPrefix := "fill-final"
-	records := make([]*kgo.Record, 0, compactionFillerChunkSize)
-	keys := make([]string, 0, compactionFillerChunkSize)
-	values := make([][]byte, 0, compactionFillerChunkSize)
-	for i := 0; i < compactionFillerChunkSize; i++ {
-		value := make([]byte, compactionFillerValueSize)
-		_, err := cryptorand.Read(value)
-		require.NoError(t, err)
+	t.Run("final flush without restart", func(t *testing.T) {
+		finalPrefix := "fill-final"
+		finalKeys, finalValues := produceChunked(
+			t, producer, topic,
+			compactionFillerChunkSize, compactionFillerChunkSize,
+			func(i int) string { return fmt.Sprintf("%s-%04d", finalPrefix, i) },
+			func(i int) []byte {
+				value := make([]byte, compactionFillerValueSize)
+				_, err := cryptorand.Read(value)
+				require.NoError(t, err)
+				return value
+			},
+		)
+		for i, key := range finalKeys {
+			live[key] = finalValues[i]
+		}
 
-		key := fmt.Sprintf("%s-%04d", finalPrefix, i)
-		records = append(records, &kgo.Record{Topic: topic, Key: []byte(key), Value: value})
-		keys = append(keys, key)
-		values = append(values, value)
-	}
-
-	finalCtx, finalCancel := context.WithTimeout(context.Background(), 60*time.Second)
-	finalResults := producer.ProduceSync(finalCtx, records...)
-	finalCancel()
-	for _, r := range finalResults {
-		require.NoError(t, r.Err)
-	}
-	for i, key := range keys {
-		live[key] = values[i]
-	}
-
-	waitForQuiescence(t, client, baseURL, topic)
-	assertModel(t, client, baseURL, topic, live, tombstoned)
+		waitForQuiescence(t, client, baseURL, topic)
+		assertModel(t, client, baseURL, topic, live, tombstoned)
+	})
 }
