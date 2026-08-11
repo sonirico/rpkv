@@ -1,7 +1,7 @@
 // Package fetch turns index pointers into value bytes: a single-record
 // fetch at (partition, offset) over the public Kafka protocol, verified
 // per SPEC "Compaction model" mechanism 2. The *kgo.Client passed to
-// NewFetcher must be dedicated to this Fetcher: FetchAt drives the
+// New must be dedicated to this Fetcher: FetchAt drives the
 // client's direct-consume assignment, which would corrupt an Ingester
 // sharing the same client.
 package fetch
@@ -24,10 +24,10 @@ type Fetcher struct {
 	mu     sync.Mutex
 }
 
-// NewFetcher wires an already-configured kgo client and topic into a
+// New wires an already-configured kgo client and topic into a
 // Fetcher. It does not open or configure the client - that is the
 // caller's responsibility.
-func NewFetcher(client *kgo.Client, topic string) *Fetcher {
+func New(client *kgo.Client, topic string) *Fetcher {
 	return &Fetcher{
 		client: client,
 		topic:  topic,

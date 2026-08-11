@@ -10,11 +10,11 @@ import (
 	"github.com/sonirico/rpkv/clock"
 )
 
-func TestSystemClock(t *testing.T) {
+func TestSystem(t *testing.T) {
 	t.Run("Now is close to the wall clock and monotonic", func(t *testing.T) {
 		t.Parallel()
 
-		sut := clock.NewSystemClock()
+		sut := clock.NewSystem()
 
 		before := time.Now()
 		got := sut.Now()
@@ -27,7 +27,7 @@ func TestSystemClock(t *testing.T) {
 	t.Run("After fires", func(t *testing.T) {
 		t.Parallel()
 
-		sut := clock.NewSystemClock()
+		sut := clock.NewSystem()
 
 		select {
 		case <-sut.After(0):

@@ -26,7 +26,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	a, err := app.NewApp(cfg, logger, clock.NewSystemClock())
+	a, err := app.New(cfg, logger, clock.NewSystem())
 	if err != nil {
 		logger.Error("build app", "error", err)
 		os.Exit(1)

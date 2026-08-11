@@ -9,7 +9,7 @@ import (
 	"github.com/sonirico/rpkv/clock"
 )
 
-var _ clock.Clock = (*MockClock)(nil)
+var _ clock.Clock = (*Mock)(nil)
 
 // waiter is a pending After call: it fires once the virtual now reaches or
 // passes deadline.
@@ -18,25 +18,25 @@ type waiter struct {
 	ch       chan time.Time
 }
 
-// MockClock is a clock.Clock whose notion of "now" only moves when Advance
+// Mock is a clock.Clock whose notion of "now" only moves when Advance
 // is called. After registers a waiter that Advance fires once its deadline
 // is reached or passed; a waiter whose deadline has already passed at
 // registration time fires immediately, without waiting for a subsequent
 // Advance.
-type MockClock struct {
+type Mock struct {
 	mu      sync.Mutex
 	now     time.Time
 	waiters []waiter
 	notify  chan<- struct{}
 }
 
-// NewMockClock returns a MockClock whose virtual now starts at start.
-func NewMockClock(start time.Time) *MockClock {
-	return &MockClock{now: start}
+// NewMock returns a Mock whose virtual now starts at start.
+func NewMock(start time.Time) *Mock {
+	return &Mock{now: start}
 }
 
 // Now returns the current virtual time.
-func (c *MockClock) Now() time.Time {
+func (c *Mock) Now() time.Time {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -46,7 +46,7 @@ func (c *MockClock) Now() time.Time {
 // After returns a buffered channel (capacity 1) that delivers the virtual
 // deadline once Advance moves now to or past it. A deadline already due at
 // registration time fires immediately.
-func (c *MockClock) After(d time.Duration) <-chan time.Time {
+func (c *Mock) After(d time.Duration) <-chan time.Time {
 	c.mu.Lock()
 
 	deadline := c.now.Add(d)
@@ -75,7 +75,7 @@ func (c *MockClock) After(d time.Duration) <-chan time.Time {
 // blocks until ch is received from. A nil channel (the default) disables
 // notification. After calls whose deadline is already due fire
 // immediately and do not notify.
-func (c *MockClock) AfterNotify(ch chan<- struct{}) {
+func (c *Mock) AfterNotify(ch chan<- struct{}) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -86,7 +86,7 @@ func (c *MockClock) AfterNotify(ch chan<- struct{}) {
 // waiter whose deadline is now due. Firing is non-blocking: After's
 // channels are buffered, so a waiter that never reads cannot deadlock
 // Advance.
-func (c *MockClock) Advance(d time.Duration) {
+func (c *Mock) Advance(d time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

@@ -111,7 +111,7 @@ func newTestIndex(t *testing.T, dir string) *index.Index {
 	db, err := pebble.Open(dir, &pebble.Options{})
 	require.NoError(t, err)
 
-	return index.NewIndex(db)
+	return index.New(db)
 }
 
 // producedRecord is what a produce call told us actually happened: the
@@ -257,7 +257,7 @@ func TestIngesterCrashRestartConvergence(t *testing.T) {
 
 	ix1 := newTestIndex(t, fx.dbDir)
 	consumeClient1 := newTestProduceClient(t)
-	ingester1 := ingest.NewIngester(consumeClient1, ix1, fx.topic, fx.logger)
+	ingester1 := ingest.New(consumeClient1, ix1, fx.topic, fx.logger)
 
 	ctx1, cancel1 := context.WithCancel(context.Background())
 	runErr1 := make(chan error, 1)
@@ -294,7 +294,7 @@ func TestIngesterCrashRestartConvergence(t *testing.T) {
 		assert.NoError(t, ix2.Close())
 	})
 	consumeClient2 := newTestProduceClient(t)
-	ingester2 := ingest.NewIngester(consumeClient2, ix2, fx.topic, fx.logger)
+	ingester2 := ingest.New(consumeClient2, ix2, fx.topic, fx.logger)
 
 	ctx2, cancel2 := context.WithCancel(context.Background())
 	runErr2 := make(chan error, 1)

@@ -88,12 +88,12 @@ func stickyIndex(calls, n int) int {
 	return calls
 }
 
-func newTestServer(t *testing.T, backends map[string]Backend) (*Server, *clocktest.MockClock) {
+func newTestServer(t *testing.T, backends map[string]Backend) (*Server, *clocktest.Mock) {
 	t.Helper()
 
-	clk := clocktest.NewMockClock(time.Unix(0, 0))
+	clk := clocktest.NewMock(time.Unix(0, 0))
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return NewServer(backends, clk, logger), clk
+	return New(backends, clk, logger), clk
 }
 
 func newTestBackend(ix indexReader, f valueFetcher, o offsetSource) Backend {

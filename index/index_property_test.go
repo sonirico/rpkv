@@ -63,7 +63,7 @@ func TestIndexApplyMatchesNaiveMaterialization(t *testing.T) {
 		rt.Cleanup(func() {
 			require.NoError(rt, db.Close())
 		})
-		ix := index.NewIndex(db)
+		ix := index.New(db)
 
 		naive := make(map[string]index.Pointer)
 
@@ -105,7 +105,7 @@ func TestIndexCheckpointMatchesLastApplied(t *testing.T) {
 		rt.Cleanup(func() {
 			require.NoError(rt, db.Close())
 		})
-		ix := index.NewIndex(db)
+		ix := index.New(db)
 
 		checkpoints := make(map[int32]int64)
 
