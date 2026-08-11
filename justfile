@@ -88,9 +88,6 @@ vet:
 lint:
     golangci-lint run
 
-build:
-    go build ./...
-
 test:
     go test ./...
 
@@ -175,6 +172,10 @@ ascii-check:
 # means something. Every case in the suite is a defect that shipped.
 harness-test:
     bash scripts/harness-test.sh
+
+# The pure-Go invariant (ADR-002): the binary must build with CGo off.
+build:
+    CGO_ENABLED=0 go build ./...
 
 check: harness-test ascii-check fmt-check vet lint build boundaries-check test-race
 
