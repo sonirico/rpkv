@@ -149,12 +149,15 @@ with the command that reproduces it.
 | Measurement | Result | Record |
 |---|---|---|
 | Read latency, local segments (p50 / p99) | 11.1 ms / 16.9 ms | [read-latency.md](docs/benchmarks/read-latency.md) |
+| Index rebuild rate | ~996k keys/s | [rebuild-rate.md](docs/benchmarks/rebuild-rate.md) |
+| Index size at 10^6 keys | 14.2 bytes/key | [index-size.md](docs/benchmarks/index-size.md) |
 
 Client-observed end-to-end `GET` wall time on loopback against a
 single-node dockerized Redpanda, broker fetch round-trip included:
 100000 keys of 256 random bytes, 5000 uniform-random reads. Reproduce
-with `just bench-read`. Tiered-storage-evicted latency, rebuild rate and
-index bytes/key are pending measurements.
+with `just bench-read`, `just bench-rebuild` and `just bench-index-size`.
+Tiered-storage-evicted read latency is pending an object store (MinIO)
+in the test substrate.
 
 ## Status
 
@@ -163,7 +166,7 @@ index bytes/key are pending measurements.
 | 0 - Foundations | done |
 | 1 - Core (index, ingest, fetch, server, cmd, metrics) | done |
 | 2 - Resilience proof | in progress - compaction contract suite and rebuild convergence done; crash-consistency sweep pending |
-| 3 - Numbers and release | in progress - read latency on record |
+| 3 - Numbers and release | in progress - read latency, rebuild rate and index size on record; tiered-storage-evicted latency blocked on an object store in the test substrate |
 
 Measured numbers land under `docs/benchmarks/` with reproduce commands;
 see [Benchmarks](#benchmarks) for what is on record so far.
