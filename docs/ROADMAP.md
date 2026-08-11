@@ -104,7 +104,7 @@ never silently becomes `[x]`.
 - [x] **Rebuild convergence.** Delete the Pebble dir after the suite
       above; re-ingest from the (compacted) log; assert the rebuilt index
       state equals the pre-delete state.
-- [ ] **Crash-consistency sweep.** Kill -9 the process at randomized
+- [x] **Crash-consistency sweep.** Kill -9 the process at randomized
       points under write load (harness script, seeded); on restart the
       invariants hold (no checkpoint ahead of applied entries; property
       re-check against naive consumer).
