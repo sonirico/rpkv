@@ -119,6 +119,9 @@ func (a *App) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("app: listen %s: %w", a.cfg.Listen, err)
 	}
+	runCtx, cancelRun := context.WithCancel(ctx)
+	defer cancelRun()
+
 	a.addrCh <- ln.Addr().String()
 
 	httpServer := &http.Server{Handler: a.server}
@@ -126,7 +129,7 @@ func (a *App) Run(ctx context.Context) error {
 	errCh := make(chan error, len(a.topics)+1)
 	for _, rt := range a.topics {
 		go func() {
-			errCh <- rt.ingester.Run(ctx)
+			errCh <- rt.ingester.Run(runCtx)
 		}()
 	}
 	go func() {
@@ -145,6 +148,8 @@ func (a *App) Run(ctx context.Context) error {
 			firstErr = runErr
 		}
 	}
+
+	cancelRun()
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
