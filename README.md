@@ -195,7 +195,7 @@ in the test substrate.
 | 0 - Foundations | done |
 | 1 - Core (index, ingest, fetch, server, cmd, metrics) | done |
 | 2 - Resilience proof | done |
-| 3 - Numbers and release | in progress - read latency, rebuild rate and index size on record; tiered-storage-evicted latency blocked on an object store in the test substrate |
+| 3 - Numbers and release | done - v0.1.0; tiered-storage-evicted latency remains blocked on an object store in the test substrate |
 
 Measured numbers land under `docs/benchmarks/` with reproduce commands;
 see [Benchmarks](#benchmarks) for what is on record so far.

@@ -124,8 +124,9 @@ never silently becomes `[x]`.
 - [x] **README for release**: what it is, the honest trade-off, quickstart
       against the dev loop, the compaction-resilience story, the
       benchmark table.
-- [ ] Tag `v0.1.0`. Verification: fresh clone + `just setup && just
+- [x] Tag `v0.1.0`. Verification: fresh clone + `just setup && just
       check` green + quickstart works as written.
+      Verified by scripts/release-check.sh (receipt on record).
 
 Phase 3's artifacts (contract suite + benchmarks) are the resume gate for
 `../redpanda/rpkv-plan/UPSTREAM-PLAN.md`. When they exist, that plan wakes
