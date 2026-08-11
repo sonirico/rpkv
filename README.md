@@ -165,7 +165,7 @@ in the test substrate.
 |---|---|
 | 0 - Foundations | done |
 | 1 - Core (index, ingest, fetch, server, cmd, metrics) | done |
-| 2 - Resilience proof | in progress - compaction contract suite and rebuild convergence done; crash-consistency sweep pending |
+| 2 - Resilience proof | done |
 | 3 - Numbers and release | in progress - read latency, rebuild rate and index size on record; tiered-storage-evicted latency blocked on an object store in the test substrate |
 
 Measured numbers land under `docs/benchmarks/` with reproduce commands;
