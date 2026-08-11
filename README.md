@@ -180,6 +180,8 @@ with the command that reproduces it.
 | Measurement | Result | Record |
 |---|---|---|
 | Read latency, local segments (p50 / p99) | 11.1 ms / 16.9 ms | [read-latency.md](docs/benchmarks/read-latency.md) |
+| Read latency, tiered-storage-evicted, cold (p50 / p99) | 10.6 ms / 20.5 ms | [tiered-read-latency.md](docs/benchmarks/tiered-read-latency.md) |
+| Read latency, tiered-storage-evicted, warm (p50 / p99) | 11.2 ms / 20.4 ms | [tiered-read-latency.md](docs/benchmarks/tiered-read-latency.md) |
 | Index rebuild rate | ~996k keys/s | [rebuild-rate.md](docs/benchmarks/rebuild-rate.md) |
 | Index size at 10^6 keys | 14.2 bytes/key | [index-size.md](docs/benchmarks/index-size.md) |
 
@@ -187,8 +189,9 @@ Client-observed end-to-end `GET` wall time on loopback against a
 single-node dockerized Redpanda, broker fetch round-trip included:
 100000 keys of 256 random bytes, 5000 uniform-random reads. Reproduce
 with `just bench-read`, `just bench-rebuild` and `just bench-index-size`.
-Tiered-storage-evicted read latency is pending an object store (MinIO)
-in the test substrate.
+Tiered-storage-evicted latency is measured against a self-provisioned
+MinIO with local segments forced out by retention; reproduce with
+`just bench-tiered-read`.
 
 ## Status
 
@@ -197,7 +200,7 @@ in the test substrate.
 | 0 - Foundations | done |
 | 1 - Core (index, ingest, fetch, server, cmd, metrics) | done |
 | 2 - Resilience proof | done |
-| 3 - Numbers and release | done - v0.1.0; tiered-storage-evicted latency remains blocked on an object store in the test substrate |
+| 3 - Numbers and release | done - v0.1.0 |
 
 Measured numbers land under `docs/benchmarks/` with reproduce commands;
 see [Benchmarks](#benchmarks) for what is on record so far.

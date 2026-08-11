@@ -111,16 +111,17 @@ never silently becomes `[x]`.
 
 ## Phase 3 - Numbers and release
 
-- [~] **Benchmarks on record** under `docs/benchmarks/` with reproduce
+- [x] **Benchmarks on record** under `docs/benchmarks/` with reproduce
       commands: read p50/p99 (local segments), read latency for
-      tiered-storage-evicted keys (or `[~]` with the exact blocker if no
-      object store is available locally - MinIO is the unblock), index
-      rebuild rate (keys/s), index bytes per key at 10^6 keys. Read
-      latency (local segments), rebuild rate and bytes-per-key are on
-      record under docs/benchmarks/. Blocked remainder:
-      tiered-storage-evicted latency needs an object store in the test
-      substrate; vago/testit has no MinIO module - adding one is the
-      unblock.
+      tiered-storage-evicted keys, index rebuild rate (keys/s), index
+      bytes per key at 10^6 keys. All four are on record under
+      docs/benchmarks/. The tiered-storage-evicted measurement was
+      unblocked by `vago/testit/minio` v0.1.0 (a MinIO test resource) plus
+      `vago/testit/redpanda` v0.2.0 (binds the admin port and adds
+      bootstrap-time cluster properties); `internal/rptest` provisions
+      both under `RPKV_TEST_TIERED=1` and the benchmark forces local
+      segment eviction via `retention.local.target.bytes` before reading.
+      See `docs/benchmarks/tiered-read-latency.md`.
 - [x] **README for release**: what it is, the honest trade-off, quickstart
       against the dev loop, the compaction-resilience story, the
       benchmark table.
