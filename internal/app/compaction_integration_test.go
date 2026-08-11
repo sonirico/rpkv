@@ -250,8 +250,14 @@ func TestCompactionContract(t *testing.T) {
 				continue
 			}
 
-			tombstoneCtx, tombstoneCancel := context.WithTimeout(context.Background(), 60*time.Second)
-			result := producer.ProduceSync(tombstoneCtx, &kgo.Record{Topic: topic, Key: []byte(key), Value: nil})
+			tombstoneCtx, tombstoneCancel := context.WithTimeout(
+				context.Background(),
+				60*time.Second,
+			)
+			result := producer.ProduceSync(
+				tombstoneCtx,
+				&kgo.Record{Topic: topic, Key: []byte(key), Value: nil},
+			)
 			tombstoneCancel()
 			require.NoError(t, result.FirstErr())
 
