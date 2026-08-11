@@ -95,7 +95,7 @@ never silently becomes `[x]`.
 
 ## Phase 2 - Resilience proof (the compaction claims become tests)
 
-- [ ] **Compaction contract suite.** Long-running integration test:
+- [x] **Compaction contract suite.** Long-running integration test:
       compacted topic, thousands of overwrites across keys, compaction
       forced repeatedly, ingester restarted twice mid-run; at each
       quiescent point every live key `GET`s its latest value and every
