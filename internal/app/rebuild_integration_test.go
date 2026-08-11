@@ -11,9 +11,7 @@
 package app_test
 
 import (
-	cryptorand "crypto/rand"
 	"fmt"
-	"io"
 	"math/rand"
 	"net/http"
 	"os"
@@ -52,11 +50,7 @@ func snapshotKeys(
 
 	snapshot := make(map[string]kvSnapshot, len(keys))
 	for _, key := range keys {
-		resp, err := client.Get(baseURL + "/v1/kv/" + topic + "/" + key)
-		require.NoError(t, err)
-		body, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		require.NoError(t, resp.Body.Close())
+		resp, body := getKV(t, client, baseURL, topic, key)
 
 		snapshot[key] = kvSnapshot{
 			Status:     resp.StatusCode,
@@ -97,58 +91,12 @@ func TestRebuildConvergence(t *testing.T) {
 	tombstoned := make(map[string]struct{})
 	seq := 0
 
-	overwriteKeys, overwriteValues := produceChunked(
-		t, producer, topic,
-		compactionOverwritesPerRound, compactionOverwriteChunkSize,
-		func(i int) string { return fmt.Sprintf("k-%04d", rng.Intn(compactionKeySpace)) },
-		func(i int) []byte {
-			value := []byte(fmt.Sprintf("rebuild-s%d", seq))
-			seq++
-			return value
-		},
-	)
-	for i, key := range overwriteKeys {
-		live[key] = overwriteValues[i]
-		delete(tombstoned, key)
-	}
-
-	tried := make(map[string]struct{})
-	tombstonedThisRound := 0
-	for tombstonedThisRound < compactionTombstonesPerRound {
-		key := fmt.Sprintf("k-%04d", rng.Intn(compactionKeySpace))
-		if _, present := live[key]; !present {
-			tried[key] = struct{}{}
-			if len(tried) >= compactionKeySpace {
-				break
-			}
-			continue
-		}
-
-		produceRecords(t, producer, &kgo.Record{Topic: topic, Key: []byte(key), Value: nil})
-
-		delete(live, key)
-		tombstoned[key] = struct{}{}
-		tombstonedThisRound++
-	}
-	require.Equal(
-		t, compactionTombstonesPerRound, tombstonedThisRound,
+	produceCompactionRound(
+		t, producer, topic, rng, live, tombstoned, &seq,
+		func(s int) []byte { return []byte(fmt.Sprintf("rebuild-s%d", s)) },
+		"fill-rebuild",
 		"not enough live keys to tombstone",
 	)
-
-	fillerKeys, fillerValues := produceChunked(
-		t, producer, topic,
-		compactionFillerPerRound, compactionFillerChunkSize,
-		func(i int) string { return fmt.Sprintf("fill-rebuild-%04d", i) },
-		func(i int) []byte {
-			value := make([]byte, compactionFillerValueSize)
-			_, err := cryptorand.Read(value)
-			require.NoError(t, err)
-			return value
-		},
-	)
-	for i, key := range fillerKeys {
-		live[key] = fillerValues[i]
-	}
 
 	baseURL, stop := startTestApp(t, cfg)
 	t.Cleanup(func() { stop() })
