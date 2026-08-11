@@ -160,6 +160,12 @@ redpanda-down:
 test-integration:
     go test -tags integration -p 1 ./... -race
 
+# No -race: the race detector's instrumentation overhead skews latency
+# measurements. The JSON it writes to docs/benchmarks/read-latency.json is
+# the artifact the docs copy numbers from.
+bench-read:
+    RPKV_BENCH=1 RPKV_BENCH_OUT={{justfile_directory()}}/docs/benchmarks/read-latency.json go test -tags integration -p 1 -run TestReadLatencyBenchmark ./internal/app -v -count=1
+
 # Public packages must not import internal/ (ADR-002's layout rule).
 boundaries-check:
     bash scripts/check-boundaries.sh .
