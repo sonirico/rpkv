@@ -15,14 +15,3 @@
 # every prompt, and a retyping is a chance to drift. Pinned `model: sonnet`
 # lives here too, so the rule stops depending on a session remembering it.
 !/.claude/agents/
-
-# The measurements stay local - quality-pass.json, check.log and coverage.log
-# are reproducible by re-running the script over the sha they name. The
-# acceptances do not: an .accepted file is a judgment someone made about a
-# measured failure, it is the one thing here that cannot be recomputed, and a
-# decision "on the record" that exists on one laptop is on no record at all.
-!/.claude/receipts/
-/.claude/receipts/*
-!/.claude/receipts/*/
-/.claude/receipts/*/*
-!/.claude/receipts/*/*.accepted

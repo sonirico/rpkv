@@ -36,12 +36,11 @@ memory; no session may depend on conversational context from a previous one.
 
 Implementation is delegated to subagents; the main session writes the spec,
 reviews the result, runs the gate and pushes. This contract is vendored from
-elsewhere, where every rule was paid for by a real failure - the eleven-entry
-ledger lives in elsewhere's `CLAUDE.md` ("How this got its shape") and is worth
-reading once. The common thread: every failure was caught by a person
-looking, and every fix moved the catching into code. rpkv imports the rules
-already-paid-for; a rule that seems pointless here probably has a ledger
-entry there.
+an earlier private project, where every rule was paid for by a real
+failure - an eleven-entry ledger of defects that actually shipped. The
+common thread: every failure was caught by a person looking, and every fix
+moved the catching into code. rpkv imports the rules already-paid-for; a
+rule that seems pointless here probably has a ledger entry there.
 
 ### Delegating
 
@@ -121,8 +120,8 @@ saying why - written by the **main session only**, never the gated agent.
 
 **The gates are themselves tested.** `scripts/harness-test.sh` is a
 dependency of `just check` and runs first, over throwaway repositories.
-Every case in it is a defect that actually shipped (in elsewhere). Add to it
-whenever a gate is fixed.
+Every case in it is a defect that actually shipped upstream of this
+harness. Add to it whenever a gate is fixed.
 
 **Mutation checks** run via `scripts/mutation-check.sh <file> <sed-expr>
 <pkg> [run-pattern]`, never as a narrated re-run. Verify

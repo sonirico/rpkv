@@ -16,8 +16,8 @@ never silently becomes `[x]`.
 ## Phase 0 - Foundations
 
 - [x] `git init`, `go mod init github.com/sonirico/rpkv`
-- [x] Harness vendored from elsewhere (scripts, hooks, agents, justfile);
-      `bash scripts/harness-test.sh` green in this repo.
+- [x] Harness vendored from an earlier private project (scripts, hooks,
+      agents, justfile); `bash scripts/harness-test.sh` green in this repo.
 - [x] `CLAUDE.md`, `docs/SPEC.md` with frozen contracts, `docs/adr/`,
       `docs/PM-BRIEF.md`. Recon spike done and parked with the upstream
       plan in `../redpanda/rpkv-plan/`.
