@@ -17,7 +17,6 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -32,6 +31,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 
 	"github.com/sonirico/rpkv/index"
+	"github.com/sonirico/rpkv/internal/config"
 	"github.com/sonirico/rpkv/internal/rptest"
 )
 
@@ -53,20 +53,6 @@ func newTestRpkvBinary(t *testing.T) string {
 	require.NoError(t, err, "go build: %s", out)
 
 	return bin
-}
-
-// newTestListenAddr reserves an ephemeral loopback address by briefly
-// listening on it and closing the listener, so the returned address is free
-// for a subprocess to bind.
-func newTestListenAddr(t *testing.T) string {
-	t.Helper()
-
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	addr := l.Addr().String()
-	require.NoError(t, l.Close())
-
-	return addr
 }
 
 // startRpkvProcess starts bin against topic/dataDir/listen as a real
@@ -329,13 +315,18 @@ func TestCrashConsistencySweep(t *testing.T) {
 		assertCrashInvariants(t, admin, dataDir, topic, allKeys)
 	}
 
-	addr := newTestListenAddr(t)
-	cmd := startRpkvProcess(t, bin, topic, dataDir, addr)
-	client := &http.Client{Timeout: 10 * time.Second}
-	baseURL := "http://" + addr
+	t.Run("final convergence", func(t *testing.T) {
+		cfg := config.Config{
+			Brokers: []string{rptest.Brokers()},
+			Topics:  []string{topic},
+			DataDir: dataDir,
+			Listen:  "127.0.0.1:0",
+		}
+		baseURL, stop := startTestApp(t, cfg)
+		t.Cleanup(func() { stop() })
 
-	waitForQuiescence(t, client, baseURL, topic)
-	assertModel(t, client, baseURL, topic, live, tombstoned)
-
-	killRpkvProcess(t, cmd)
+		client := &http.Client{Timeout: 10 * time.Second}
+		waitForQuiescence(t, client, baseURL, topic)
+		assertModel(t, client, baseURL, topic, live, tombstoned)
+	})
 }
