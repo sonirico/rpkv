@@ -121,7 +121,7 @@ never silently becomes `[x]`.
       tiered-storage-evicted latency needs an object store in the test
       substrate; vago/testit has no MinIO module - adding one is the
       unblock.
-- [ ] **README for release**: what it is, the honest trade-off, quickstart
+- [x] **README for release**: what it is, the honest trade-off, quickstart
       against the dev loop, the compaction-resilience story, the
       benchmark table.
 - [ ] Tag `v0.1.0`. Verification: fresh clone + `just setup && just
