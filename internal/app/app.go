@@ -54,7 +54,7 @@ func New(cfg config.Config, logger *slog.Logger, clk clock.Clock) (*App, error) 
 	var topics []*topicRuntime
 	backends := make(map[string]server.Backend, len(cfg.Topics))
 
-	sinks, err := promsink.New()
+	sinks, err := promsink.New(logger)
 	if err != nil {
 		return nil, fmt.Errorf("app: metrics sinks: %w", err)
 	}

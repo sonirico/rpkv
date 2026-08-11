@@ -33,10 +33,10 @@ type Sinks struct {
 }
 
 // New builds a private registry and registers every rpkv metric onto it.
-func New() (*Sinks, error) {
+func New(logger *slog.Logger) (*Sinks, error) {
 	s := &Sinks{
 		registry: prometheus.NewRegistry(),
-		logger:   slog.Default(),
+		logger:   logger,
 		fetchOutcomes: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "rpkv_fetch_outcomes_total",
 			Help: "Count of fetch outcomes, by topic and outcome.",
