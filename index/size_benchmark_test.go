@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/cockroachdb/pebble"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/sonirico/rpkv/index"
@@ -43,6 +44,9 @@ func TestIndexSizeBenchmark(t *testing.T) {
 	require.NoError(t, err)
 
 	ix := index.New(db)
+	t.Cleanup(func() {
+		assert.NoError(t, ix.Close())
+	})
 
 	for i := 0; i < sizeBenchKeys; i += sizeBenchBatch {
 		end := i + sizeBenchBatch
