@@ -43,11 +43,36 @@ func TestPercentile(t *testing.T) {
 		q       float64
 		want    time.Duration
 	}{
-		{name: "p50 of ten samples is the 5th value", samples: tenSortedSamples(), q: 50, want: 5 * time.Millisecond},
-		{name: "p90 of ten samples is the 9th value", samples: tenSortedSamples(), q: 90, want: 9 * time.Millisecond},
-		{name: "p99 of ten samples rounds up to the 10th value", samples: tenSortedSamples(), q: 99, want: 10 * time.Millisecond},
-		{name: "p100 of ten samples is the last value", samples: tenSortedSamples(), q: 100, want: 10 * time.Millisecond},
-		{name: "single-sample slice returns that sample regardless of q", samples: []time.Duration{3 * time.Millisecond}, q: 1, want: 3 * time.Millisecond},
+		{
+			name:    "p50 of ten samples is the 5th value",
+			samples: tenSortedSamples(),
+			q:       50,
+			want:    5 * time.Millisecond,
+		},
+		{
+			name:    "p90 of ten samples is the 9th value",
+			samples: tenSortedSamples(),
+			q:       90,
+			want:    9 * time.Millisecond,
+		},
+		{
+			name:    "p99 of ten samples rounds up to the 10th value",
+			samples: tenSortedSamples(),
+			q:       99,
+			want:    10 * time.Millisecond,
+		},
+		{
+			name:    "p100 of ten samples is the last value",
+			samples: tenSortedSamples(),
+			q:       100,
+			want:    10 * time.Millisecond,
+		},
+		{
+			name:    "single-sample slice returns that sample regardless of q",
+			samples: []time.Duration{3 * time.Millisecond},
+			q:       1,
+			want:    3 * time.Millisecond,
+		},
 	}
 
 	for _, tc := range tests {
