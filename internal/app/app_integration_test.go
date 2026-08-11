@@ -31,16 +31,65 @@ const (
 	testEventuallyTick = 100 * time.Millisecond
 )
 
-// newTestAppTopicName returns a unique topic name for one test run, mirroring
-// fetch and ingest's integration topic naming.
-func newTestAppTopicName(t *testing.T) string {
+// newTestTopicName returns a unique topic name for one test run, prefixed by
+// prefix, mirroring fetch and ingest's integration topic naming.
+func newTestTopicName(t *testing.T, prefix string) string {
 	t.Helper()
 
 	suffix := make([]byte, 8)
 	_, err := rand.Read(suffix)
 	require.NoError(t, err)
 
-	return fmt.Sprintf("app-e2e-%s", hex.EncodeToString(suffix))
+	return prefix + hex.EncodeToString(suffix)
+}
+
+// produceRecords produces records synchronously with a 60s timeout and
+// requires every result to be error-free. Shared by every produce call
+// site in this package.
+func produceRecords(t *testing.T, producer *kgo.Client, records ...*kgo.Record) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	results := producer.ProduceSync(ctx, records...)
+	for _, r := range results {
+		require.NoError(t, r.Err)
+	}
+}
+
+// startTestApp wires and runs an App against cfg, returning its base HTTP
+// URL and a stop func that cancels the run and requires both a clean Run
+// exit and a clean Close. Callers own calling stop exactly once per
+// started app.
+func startTestApp(t *testing.T, cfg config.Config) (string, func()) {
+	t.Helper()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	a, err := app.New(cfg, logger, clock.NewSystem())
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	runErr := make(chan error, 1)
+	go func() {
+		runErr <- a.Run(ctx)
+	}()
+
+	addr, err := a.Addr(ctx)
+	require.NoError(t, err)
+
+	stop := func() {
+		cancel()
+		select {
+		case err := <-runErr:
+			require.NoError(t, err)
+		case <-time.After(10 * time.Second):
+			t.Fatal("app did not stop within 10s")
+		}
+		require.NoError(t, a.Close())
+	}
+
+	return "http://" + addr, stop
 }
 
 // findMetricLine returns the line of a Prometheus exposition body starting
@@ -60,7 +109,7 @@ func TestAppEndToEnd(t *testing.T) {
 	t.Cleanup(adminClient.Close)
 
 	admin := kadm.NewClient(adminClient)
-	topic := newTestAppTopicName(t)
+	topic := newTestTopicName(t, "app-e2e-")
 
 	createCtx, createCancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer createCancel()
@@ -72,16 +121,11 @@ func TestAppEndToEnd(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(producer.Close)
 
-	produceCtx, produceCancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer produceCancel()
-	results := producer.ProduceSync(produceCtx,
+	produceRecords(t, producer,
 		&kgo.Record{Topic: topic, Key: []byte("k1"), Value: []byte("v1")},
 		&kgo.Record{Topic: topic, Key: []byte("k2"), Value: []byte("v2")},
 		&kgo.Record{Topic: topic, Key: []byte("k2"), Value: nil},
 	)
-	for _, r := range results {
-		require.NoError(t, r.Err)
-	}
 
 	cfg := config.Config{
 		Brokers: []string{rptest.Brokers()},
@@ -90,31 +134,8 @@ func TestAppEndToEnd(t *testing.T) {
 		Listen:  "127.0.0.1:0",
 	}
 
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	a, err := app.New(cfg, logger, clock.NewSystem())
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, a.Close())
-	})
-
-	ctx, cancel := context.WithCancel(context.Background())
-	runErr := make(chan error, 1)
-	go func() {
-		runErr <- a.Run(ctx)
-	}()
-	t.Cleanup(func() {
-		cancel()
-		select {
-		case err := <-runErr:
-			require.NoError(t, err)
-		case <-time.After(10 * time.Second):
-			t.Fatal("app did not stop within 10s")
-		}
-	})
-
-	addr, err := a.Addr(ctx)
-	require.NoError(t, err)
-	baseURL := "http://" + addr
+	baseURL, stop := startTestApp(t, cfg)
+	t.Cleanup(stop)
 
 	client := &http.Client{Timeout: 5 * time.Second}
 

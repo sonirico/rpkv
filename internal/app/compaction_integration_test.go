@@ -5,10 +5,8 @@ package app_test
 import (
 	"context"
 	cryptorand "crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"io"
-	"log/slog"
 	"math/rand"
 	"net/http"
 	"strconv"
@@ -20,8 +18,6 @@ import (
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 
-	"github.com/sonirico/rpkv/clock"
-	"github.com/sonirico/rpkv/internal/app"
 	"github.com/sonirico/rpkv/internal/config"
 	"github.com/sonirico/rpkv/internal/rptest"
 )
@@ -38,18 +34,6 @@ const (
 	compactionQuiesce            = 90 * time.Second
 )
 
-// newTestCompactionTopicName returns a unique topic name for one
-// compaction test run, mirroring newTestAppTopicName.
-func newTestCompactionTopicName(t *testing.T) string {
-	t.Helper()
-
-	suffix := make([]byte, 8)
-	_, err := cryptorand.Read(suffix)
-	require.NoError(t, err)
-
-	return fmt.Sprintf("app-compact-%s", hex.EncodeToString(suffix))
-}
-
 // newTestCompactionTopic creates a two-partition, aggressively compacting
 // topic, the recipe from fetch/fetcher_integration_test.go's "superseded
 // after compaction" subtest, so the broker forces compaction repeatedly
@@ -57,7 +41,7 @@ func newTestCompactionTopicName(t *testing.T) string {
 func newTestCompactionTopic(t *testing.T, admin *kadm.Client) string {
 	t.Helper()
 
-	topic := newTestCompactionTopicName(t)
+	topic := newTestTopicName(t, "app-compact-")
 	configs := map[string]*string{
 		"cleanup.policy":        kadm.StringPtr("compact"),
 		"max.compaction.lag.ms": kadm.StringPtr("100"),
@@ -75,21 +59,6 @@ func newTestCompactionTopic(t *testing.T, admin *kadm.Client) string {
 	}
 
 	return topic
-}
-
-// produceRecords produces records synchronously with a 60s timeout and
-// requires every result to be error-free. Shared by every produce call
-// site in this test (overwrites, tombstones, filler, and the final flush).
-func produceRecords(t *testing.T, producer *kgo.Client, records ...*kgo.Record) {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-
-	results := producer.ProduceSync(ctx, records...)
-	for _, r := range results {
-		require.NoError(t, r.Err)
-	}
 }
 
 // produceChunked builds n records for topic in chunks of chunkSize, keying
@@ -128,40 +97,6 @@ func produceChunked(
 	}
 
 	return keys, values
-}
-
-// startTestApp wires and runs an App against cfg, returning its base HTTP
-// URL and a stop func that cancels the run and requires both a clean Run
-// exit and a clean Close. Callers own calling stop exactly once per
-// started app.
-func startTestApp(t *testing.T, cfg config.Config) (string, func()) {
-	t.Helper()
-
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	a, err := app.New(cfg, logger, clock.NewSystem())
-	require.NoError(t, err)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	runErr := make(chan error, 1)
-	go func() {
-		runErr <- a.Run(ctx)
-	}()
-
-	addr, err := a.Addr(ctx)
-	require.NoError(t, err)
-
-	stop := func() {
-		cancel()
-		select {
-		case err := <-runErr:
-			require.NoError(t, err)
-		case <-time.After(10 * time.Second):
-			t.Fatal("app did not stop within 10s")
-		}
-		require.NoError(t, a.Close())
-	}
-
-	return "http://" + addr, stop
 }
 
 // waitForQuiescence polls /metrics until rpkv_ingest_lag reports zero for
