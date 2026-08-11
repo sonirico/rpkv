@@ -147,6 +147,53 @@ func TestMockClock_After(t *testing.T) {
 		requireFired(t, soon, testStart.Add(5*time.Second))
 		requireNotFired(t, later)
 	})
+
+	t.Run("AfterNotify signals parked waiter", func(t *testing.T) {
+		t.Parallel()
+
+		start := time.Unix(0, 0)
+		sut := clocktest.NewMockClock(start)
+		notify := make(chan struct{})
+		sut.AfterNotify(notify)
+		fired := make(chan time.Time, 1)
+
+		go func() {
+			ch := sut.After(50 * time.Millisecond)
+			fired <- <-ch
+		}()
+
+		<-notify
+		sut.Advance(50 * time.Millisecond)
+
+		select {
+		case got := <-fired:
+			assert.Equal(t, start.Add(50*time.Millisecond), got)
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for After to fire")
+		}
+	})
+
+	t.Run("immediate fire does not notify", func(t *testing.T) {
+		t.Parallel()
+
+		sut := newTestMockClock(t)
+		notify := make(chan struct{}, 1)
+		sut.AfterNotify(notify)
+
+		ch := sut.After(0)
+
+		select {
+		case <-ch:
+		default:
+			t.Fatal("channel did not fire immediately")
+		}
+
+		select {
+		case <-notify:
+			t.Fatal("notify received a signal for an immediate fire")
+		default:
+		}
+	})
 }
 
 func TestMockClock_ConcurrentAccess(t *testing.T) {
