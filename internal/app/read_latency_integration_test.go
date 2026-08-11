@@ -1,11 +1,5 @@
 //go:build integration
 
-// TestReadLatencyBenchmark measures client-observed end-to-end
-// GET /v1/kv/{topic}/{key} wall time on loopback against a self-provisioned
-// broker with local segments: it includes the broker fetch round-trip, not
-// just server-side handling. Timing is taken client-side rather than read
-// from the server's request-duration histogram because that histogram uses
-// DefBuckets, too coarse to resolve p50/p90/p99 at this scale.
 package app_test
 
 import (
@@ -51,6 +45,12 @@ type benchResult struct {
 	MeanMs    float64 `json:"mean_ms"`
 }
 
+// TestReadLatencyBenchmark measures client-observed end-to-end
+// GET /v1/kv/{topic}/{key} wall time on loopback against a self-provisioned
+// broker with local segments: it includes the broker fetch round-trip, not
+// just server-side handling. Timing is taken client-side rather than read
+// from the server's request-duration histogram because that histogram uses
+// DefBuckets, too coarse to resolve p50/p90/p99 at this scale.
 func TestReadLatencyBenchmark(t *testing.T) {
 	if os.Getenv("RPKV_BENCH") == "" {
 		t.Skip("benchmark: set RPKV_BENCH=1 to run")
