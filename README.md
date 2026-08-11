@@ -141,18 +141,32 @@ X-Rpkv-Checkpoint: 0
 | `rpkv_ingest_null_keys_skipped_total` | Counter | `topic` |
 | `rpkv_ingest_lag` | Gauge | `topic`, `partition` |
 
+## Benchmarks
+
+Numbers on record live under [`docs/benchmarks/`](docs/benchmarks/), each
+with the command that reproduces it.
+
+| Measurement | Result | Record |
+|---|---|---|
+| Read latency, local segments (p50 / p99) | 11.1 ms / 16.9 ms | [read-latency.md](docs/benchmarks/read-latency.md) |
+
+Client-observed end-to-end `GET` wall time on loopback against a
+single-node dockerized Redpanda, broker fetch round-trip included:
+100000 keys of 256 random bytes, 5000 uniform-random reads. Reproduce
+with `just bench-read`. Tiered-storage-evicted latency, rebuild rate and
+index bytes/key are pending measurements.
+
 ## Status
 
 | Phase | State |
 |---|---|
 | 0 - Foundations | done |
 | 1 - Core (index, ingest, fetch, server, cmd, metrics) | done |
-| 2 - Resilience proof | in progress - compaction contract suite done; rebuild convergence and crash-consistency sweep pending |
-| 3 - Numbers and release | pending |
+| 2 - Resilience proof | in progress - compaction contract suite and rebuild convergence done; crash-consistency sweep pending |
+| 3 - Numbers and release | in progress - read latency on record |
 
-Measured read p50/p99, rebuild rate and index bytes/key land under
-`docs/benchmarks/` with reproduce commands. No performance numbers are
-claimed until then.
+Measured numbers land under `docs/benchmarks/` with reproduce commands;
+see [Benchmarks](#benchmarks) for what is on record so far.
 
 ## Development
 
