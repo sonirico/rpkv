@@ -172,6 +172,12 @@ bench-index-size:
 bench-rebuild:
     RPKV_BENCH=1 RPKV_BENCH_OUT={{justfile_directory()}}/docs/benchmarks/rebuild-rate.json go test -tags integration -p 1 -run TestRebuildRateBenchmark ./internal/app -v -count=1
 
+# RPKV_TEST_TIERED provisions a MinIO resource alongside the self-provisioned
+# broker and boots it with tiered storage enabled; internal/rptest.Main
+# handles both, no manual setup needed beyond a running Docker daemon.
+bench-tiered-read:
+    RPKV_BENCH=1 RPKV_TEST_TIERED=1 RPKV_BENCH_OUT={{justfile_directory()}}/docs/benchmarks/tiered-read-latency.json go test -tags integration -p 1 -run TestTieredReadLatencyBenchmark ./internal/app -v -count=1
+
 # Public packages must not import internal/ (ADR-002's layout rule).
 boundaries-check:
     bash scripts/check-boundaries.sh .
