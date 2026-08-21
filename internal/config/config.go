@@ -19,6 +19,9 @@ const (
 	defaultDataDir         = "./rpkv-data"
 	defaultListen          = ":8080"
 	defaultMetadataRefresh = "30s"
+
+	ModeIndex  = "index"
+	ModeRouter = "router"
 )
 
 // Config holds the process configuration for cmd/rpkv.
@@ -29,6 +32,8 @@ type Config struct {
 	Listen          string
 	MetadataRefresh time.Duration
 	Partitions      []int32
+	Mode            string
+	Shards          []string
 }
 
 // Parse reads the configuration from args per SPEC: each flag falls back
@@ -71,15 +76,49 @@ func Parse(args []string) (Config, error) {
 		ent.Get("RPKV_PARTITION_FROM_ORDINAL", ""),
 		"derive the owned partition from the StatefulSet pod ordinal (env RPKV_PARTITION_FROM_ORDINAL)",
 	)
+	mode := fs.String(
+		"mode",
+		ent.Get("RPKV_MODE", ModeIndex),
+		"process mode: index or router (env RPKV_MODE)",
+	)
+	shards := fs.String(
+		"shards",
+		ent.Get("RPKV_SHARDS", ""),
+		"comma-separated shard addresses for router mode (env RPKV_SHARDS)",
+	)
 
 	if err := fs.Parse(args); err != nil {
 		return Config{}, err
 	}
-	if *brokers == "" {
-		return Config{}, errors.New("config: brokers required (--brokers or RPKV_BROKERS)")
+
+	if *mode != ModeIndex && *mode != ModeRouter {
+		return Config{}, errors.New(`config: mode must be "index" or "router"`)
 	}
-	if *topics == "" {
-		return Config{}, errors.New("config: topics required (--topics or RPKV_TOPICS)")
+
+	shardList := splitList(*shards)
+
+	switch *mode {
+	case ModeRouter:
+		if len(shardList) == 0 {
+			return Config{}, errors.New(
+				"config: shards required in router mode (--shards or RPKV_SHARDS)",
+			)
+		}
+		if *partitions != "" || *partitionFromOrdinal != "" {
+			return Config{}, errors.New(
+				"config: partitions and partition-from-ordinal require mode=index",
+			)
+		}
+	case ModeIndex:
+		if len(shardList) > 0 {
+			return Config{}, errors.New("config: shards requires mode=router")
+		}
+		if *brokers == "" {
+			return Config{}, errors.New("config: brokers required (--brokers or RPKV_BROKERS)")
+		}
+		if *topics == "" {
+			return Config{}, errors.New("config: topics required (--topics or RPKV_TOPICS)")
+		}
 	}
 
 	refresh, err := time.ParseDuration(*metadataRefresh)
@@ -125,6 +164,8 @@ func Parse(args []string) (Config, error) {
 		Listen:          *listen,
 		MetadataRefresh: refresh,
 		Partitions:      ownedPartitions,
+		Mode:            *mode,
+		Shards:          shardList,
 	}, nil
 }
 
