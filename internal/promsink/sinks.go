@@ -14,6 +14,7 @@ import (
 
 	"github.com/sonirico/rpkv/fetch"
 	"github.com/sonirico/rpkv/ingest"
+	"github.com/sonirico/rpkv/router"
 	"github.com/sonirico/rpkv/server"
 )
 
@@ -30,6 +31,8 @@ type Sinks struct {
 	requestDuration  prometheus.Histogram
 	applyBatchSize   *prometheus.HistogramVec
 	nullKeysSkipped  *prometheus.CounterVec
+
+	routerAmbiguousKeys prometheus.Counter
 }
 
 // New builds a private registry and registers every rpkv metric onto it.
@@ -59,6 +62,10 @@ func New(logger *slog.Logger) (*Sinks, error) {
 			Name: "rpkv_ingest_null_keys_skipped_total",
 			Help: "Count of null-key records skipped during ingest, by topic.",
 		}, []string{"topic"}),
+		routerAmbiguousKeys: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "rpkv_router_ambiguous_keys_total",
+			Help: "Count of reads answered 200 by more than one shard.",
+		}),
 	}
 
 	collectors := []prometheus.Collector{
@@ -67,6 +74,7 @@ func New(logger *slog.Logger) (*Sinks, error) {
 		s.requestDuration,
 		s.applyBatchSize,
 		s.nullKeysSkipped,
+		s.routerAmbiguousKeys,
 	}
 	for _, c := range collectors {
 		if err := s.registry.Register(c); err != nil {
@@ -100,6 +108,13 @@ func (s *Sinks) ServerMetrics() server.Metrics {
 	return server.Metrics{
 		RequestDuration:  s.requestDuration,
 		SupersedeRetries: s.supersedeRetries,
+	}
+}
+
+// RouterMetrics returns the router.Metrics shared across every request.
+func (s *Sinks) RouterMetrics() router.Metrics {
+	return router.Metrics{
+		AmbiguousKeys: s.routerAmbiguousKeys,
 	}
 }
 

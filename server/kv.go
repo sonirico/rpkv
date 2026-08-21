@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/sonirico/rpkv/fetch"
 	"github.com/sonirico/rpkv/index"
 )
 
@@ -51,7 +52,7 @@ func (s *Server) handleKV(w http.ResponseWriter, r *http.Request) {
 	case res.Superseded:
 		s.resolveSuperseded(w, r, b, key, lk.Pointer)
 	default:
-		s.writeHit(w, r, b, lk.Pointer, res.Value)
+		s.writeHit(w, r, b, lk.Pointer, res)
 	}
 }
 
@@ -62,7 +63,7 @@ func (s *Server) writeHit(
 	r *http.Request,
 	b Backend,
 	ptr index.Pointer,
-	value []byte,
+	res fetch.Result,
 ) {
 	cp, err := b.index.Checkpoint(ptr.Partition)
 	if err != nil {
@@ -73,8 +74,9 @@ func (s *Server) writeHit(
 	w.Header().Set("X-Rpkv-Partition", strconv.FormatInt(int64(ptr.Partition), 10))
 	w.Header().Set("X-Rpkv-Offset", strconv.FormatInt(ptr.Offset, 10))
 	w.Header().Set("X-Rpkv-Checkpoint", strconv.FormatInt(cp, 10))
+	w.Header().Set("X-Rpkv-Timestamp", strconv.FormatInt(res.Timestamp.UnixMilli(), 10))
 	w.WriteHeader(http.StatusOK)
-	if _, err := w.Write(value); err != nil {
+	if _, err := w.Write(res.Value); err != nil {
 		s.logger.Error("write value", "error", err)
 	}
 }
@@ -140,7 +142,7 @@ func (s *Server) resolveSuperseded(
 			continue
 		}
 
-		s.writeHit(w, r, b, lk.Pointer, res.Value)
+		s.writeHit(w, r, b, lk.Pointer, res)
 		return
 	}
 }

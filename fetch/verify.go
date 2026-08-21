@@ -30,7 +30,7 @@ func verifyFetch(
 			continue
 		}
 		if bytes.Equal(r.Key, key) {
-			return Result{Value: r.Value}, true
+			return Result{Value: r.Value, Timestamp: r.Timestamp}, true
 		}
 		return Result{Superseded: true}, true
 	}

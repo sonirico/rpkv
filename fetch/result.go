@@ -1,5 +1,7 @@
 package fetch
 
+import "time"
+
 // Result is the outcome of a single-record fetch at a pointer's offset.
 //
 // The two flags name the two ways a pointed-at record can be gone, per
@@ -25,7 +27,9 @@ package fetch
 // The two are mutually exclusive: eviction is decided by the log start
 // offset before any record is examined.
 type Result struct {
-	Value      []byte
+	Value []byte
+	// Timestamp is the record's timestamp; zero-value except on a hit.
+	Timestamp  time.Time
 	Superseded bool
 	Evicted    bool
 }

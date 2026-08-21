@@ -153,12 +153,12 @@ detect and report but not resolve.
       Verification: two processes with disjoint `--partitions` each
       answer only their own keys, and opening a data dir with a different
       set is refused.
-- [ ] Router mode (`--mode=router`, fan-out to every shard, never
+- [x] Router mode (`--mode=router`, fan-out to every shard, never
       reproducing the producer's partitioner; `X-Rpkv-Timestamp`,
       `X-Rpkv-Ambiguous`, `rpkv_router_ambiguous_keys_total`).
       Verification: an integration test grows a topic in flight and
       observes the newer value returned with `X-Rpkv-Ambiguous: true`.
-- [ ] Sharding numbers on record (index size and ingest rate monolith vs
+- [x] Sharding numbers on record (index size and ingest rate monolith vs
       shard; read latency through the router against
       `docs/benchmarks/read-latency.md`).
       Verification: JSON plus markdown under `docs/benchmarks/` with the

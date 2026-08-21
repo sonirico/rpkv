@@ -26,6 +26,7 @@ import (
 	"github.com/sonirico/rpkv/internal/offsets"
 	"github.com/sonirico/rpkv/internal/promsink"
 	"github.com/sonirico/rpkv/internal/topicshape"
+	"github.com/sonirico/rpkv/router"
 	"github.com/sonirico/rpkv/server"
 )
 
@@ -44,7 +45,7 @@ type topicRuntime struct {
 type App struct {
 	cfg            config.Config
 	logger         *slog.Logger
-	server         *server.Server
+	handler        http.Handler
 	metricsHandler http.Handler
 	topics         []*topicRuntime
 	addrCh         chan string
@@ -60,6 +61,21 @@ func New(cfg config.Config, logger *slog.Logger, clk clock.Clock) (*App, error) 
 	sinks, err := promsink.New(logger)
 	if err != nil {
 		return nil, fmt.Errorf("app: metrics sinks: %w", err)
+	}
+
+	if cfg.Mode == config.ModeRouter {
+		return &App{
+			cfg:    cfg,
+			logger: logger,
+			handler: router.New(
+				cfg.Shards,
+				&http.Client{},
+				logger,
+				router.WithMetrics(sinks.RouterMetrics()),
+			),
+			metricsHandler: sinks.Handler(),
+			addrCh:         make(chan string, 1),
+		}, nil
 	}
 
 	owned := index.NewOwnership(cfg.Partitions)
@@ -177,7 +193,7 @@ func New(cfg config.Config, logger *slog.Logger, clk clock.Clock) (*App, error) 
 	return &App{
 		cfg:            cfg,
 		logger:         logger,
-		server:         srv,
+		handler:        srv,
 		metricsHandler: sinks.Handler(),
 		topics:         topics,
 		addrCh:         make(chan string, 1),
@@ -197,7 +213,7 @@ func (a *App) Run(ctx context.Context) error {
 	a.addrCh <- ln.Addr().String()
 
 	mux := http.NewServeMux()
-	mux.Handle("/", a.server)
+	mux.Handle("/", a.handler)
 	mux.Handle("GET /metrics", a.metricsHandler)
 
 	httpServer := &http.Server{Handler: mux}
