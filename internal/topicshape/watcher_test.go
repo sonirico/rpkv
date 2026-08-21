@@ -104,7 +104,9 @@ type testWatcher struct {
 	handler   *recordingHandler
 }
 
-func newTestWatcher(partitionCount int, cleanupPolicy string) testWatcher {
+func newTestWatcher(t *testing.T, partitionCount int, cleanupPolicy string) testWatcher {
+	t.Helper()
+
 	lister := &fakeTopicLister{topics: newTestTopicDetails(testTopic, partitionCount)}
 	describer := &fakeConfigDescriber{
 		configs: newTestResourceConfigs(testTopic, cleanupPolicy),
@@ -127,7 +129,7 @@ func TestWatcher(t *testing.T) {
 	t.Run("Refresh stores the partition count and cleanup policy", func(t *testing.T) {
 		t.Parallel()
 
-		fx := newTestWatcher(3, "compact")
+		fx := newTestWatcher(t, 3, "compact")
 
 		err := fx.watcher.Refresh(context.Background())
 
@@ -142,7 +144,7 @@ func TestWatcher(t *testing.T) {
 	t.Run("Shape returns the last refreshed value", func(t *testing.T) {
 		t.Parallel()
 
-		fx := newTestWatcher(2, "delete")
+		fx := newTestWatcher(t, 2, "delete")
 
 		assert.Equal(t, server.TopicShape{}, fx.watcher.Shape())
 
@@ -158,7 +160,7 @@ func TestWatcher(t *testing.T) {
 	t.Run("a cleanup.policy transition is logged once", func(t *testing.T) {
 		t.Parallel()
 
-		fx := newTestWatcher(2, "delete")
+		fx := newTestWatcher(t, 2, "delete")
 
 		require.NoError(t, fx.watcher.Refresh(context.Background()))
 		assert.Empty(t, fx.handler.Records())
@@ -177,7 +179,7 @@ func TestWatcher(t *testing.T) {
 	t.Run("RunLoop returns when the context is cancelled", func(t *testing.T) {
 		t.Parallel()
 
-		fx := newTestWatcher(1, "delete")
+		fx := newTestWatcher(t, 1, "delete")
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})
 
