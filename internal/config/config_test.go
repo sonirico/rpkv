@@ -2,6 +2,7 @@ package config_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,26 +24,29 @@ func TestParse(t *testing.T) {
 			name: "flags only",
 			args: []string{"--brokers", "a:9092,b:9092", "--topics", "t1,t2"},
 			want: config.Config{
-				Brokers: []string{"a:9092", "b:9092"},
-				Topics:  []string{"t1", "t2"},
-				DataDir: "./rpkv-data",
-				Listen:  ":8080",
+				Brokers:         []string{"a:9092", "b:9092"},
+				Topics:          []string{"t1", "t2"},
+				DataDir:         "./rpkv-data",
+				Listen:          ":8080",
+				MetadataRefresh: 30 * time.Second,
 			},
 		},
 		{
 			name: "env fallback",
 			args: nil,
 			env: map[string]string{
-				"RPKV_BROKERS":  "c:9092",
-				"RPKV_TOPICS":   "t3",
-				"RPKV_DATA_DIR": "/tmp/x",
-				"RPKV_LISTEN":   ":9999",
+				"RPKV_BROKERS":          "c:9092",
+				"RPKV_TOPICS":           "t3",
+				"RPKV_DATA_DIR":         "/tmp/x",
+				"RPKV_LISTEN":           ":9999",
+				"RPKV_METADATA_REFRESH": "1m",
 			},
 			want: config.Config{
-				Brokers: []string{"c:9092"},
-				Topics:  []string{"t3"},
-				DataDir: "/tmp/x",
-				Listen:  ":9999",
+				Brokers:         []string{"c:9092"},
+				Topics:          []string{"t3"},
+				DataDir:         "/tmp/x",
+				Listen:          ":9999",
+				MetadataRefresh: time.Minute,
 			},
 		},
 		{
@@ -52,10 +56,11 @@ func TestParse(t *testing.T) {
 				"RPKV_BROKERS": "env:9092",
 			},
 			want: config.Config{
-				Brokers: []string{"flag:9092"},
-				Topics:  []string{"t"},
-				DataDir: "./rpkv-data",
-				Listen:  ":8080",
+				Brokers:         []string{"flag:9092"},
+				Topics:          []string{"t"},
+				DataDir:         "./rpkv-data",
+				Listen:          ":8080",
+				MetadataRefresh: 30 * time.Second,
 			},
 		},
 		{
@@ -72,11 +77,29 @@ func TestParse(t *testing.T) {
 			name: "whitespace and empty segments dropped",
 			args: []string{"--brokers", " a:9092, ,b:9092 ", "--topics", "t"},
 			want: config.Config{
-				Brokers: []string{"a:9092", "b:9092"},
-				Topics:  []string{"t"},
-				DataDir: "./rpkv-data",
-				Listen:  ":8080",
+				Brokers:         []string{"a:9092", "b:9092"},
+				Topics:          []string{"t"},
+				DataDir:         "./rpkv-data",
+				Listen:          ":8080",
+				MetadataRefresh: 30 * time.Second,
 			},
+		},
+		{
+			name: "invalid metadata-refresh is an error",
+			args: []string{
+				"--brokers",
+				"a:9092",
+				"--topics",
+				"t",
+				"--metadata-refresh",
+				"notaduration",
+			},
+			wantErr: true,
+		},
+		{
+			name:    "non-positive metadata-refresh is an error",
+			args:    []string{"--brokers", "a:9092", "--topics", "t", "--metadata-refresh", "0s"},
+			wantErr: true,
 		},
 	}
 

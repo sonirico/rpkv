@@ -35,12 +35,14 @@ type topicRuntime struct {
 	ingestClient *kgo.Client
 	fetchClient  *kgo.Client
 	ingester     *ingest.Ingester
+	refresher    *ingest.Refresher
 }
 
 // App is the wired rpkv process: per-topic pipelines plus the HTTP server.
 type App struct {
 	cfg            config.Config
 	logger         *slog.Logger
+	clk            clock.Clock
 	server         *server.Server
 	metricsHandler http.Handler
 	topics         []*topicRuntime
@@ -115,12 +117,27 @@ func New(cfg config.Config, logger *slog.Logger, clk clock.Clock) (*App, error) 
 			return nil, fmt.Errorf("app: register lag collector %q: %w", topic, err)
 		}
 
+		if err := sinks.RegisterAssignedPartitions(topic, ing); err != nil {
+			fetchClient.Close()
+			ingestClient.Close()
+			if closeErr := ix.Close(); closeErr != nil {
+				logger.Error("close partial app", "error", closeErr)
+			}
+			if closeErr := closeTopicRuntimes(topics); closeErr != nil {
+				logger.Error("close partial app", "error", closeErr)
+			}
+			return nil, fmt.Errorf("app: register assigned partitions collector %q: %w", topic, err)
+		}
+
+		refresher := ingest.NewRefresher(ing, clk, cfg.MetadataRefresh, logger)
+
 		topics = append(topics, &topicRuntime{
 			db:           db,
 			index:        ix,
 			ingestClient: ingestClient,
 			fetchClient:  fetchClient,
 			ingester:     ing,
+			refresher:    refresher,
 		})
 
 		backends[topic] = server.NewBackend(ix, f, src)
@@ -131,6 +148,7 @@ func New(cfg config.Config, logger *slog.Logger, clk clock.Clock) (*App, error) 
 	return &App{
 		cfg:            cfg,
 		logger:         logger,
+		clk:            clk,
 		server:         srv,
 		metricsHandler: sinks.Handler(),
 		topics:         topics,
@@ -166,6 +184,15 @@ func (a *App) Run(ctx context.Context) error {
 		errCh <- httpServer.Serve(ln)
 	}()
 
+	var refresherWG sync.WaitGroup
+	for _, rt := range a.topics {
+		refresherWG.Add(1)
+		go func() {
+			defer refresherWG.Done()
+			rt.refresher.RunLoop(runCtx)
+		}()
+	}
+
 	var firstErr error
 	received := 0
 	select {
@@ -180,6 +207,7 @@ func (a *App) Run(ctx context.Context) error {
 	}
 
 	cancelRun()
+	refresherWG.Wait()
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {

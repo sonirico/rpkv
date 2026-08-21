@@ -145,7 +145,11 @@ all partitions (`kgo.ConsumePartitions`), each starting at
 `checkpoint+1`, or the partition's log start when no checkpoint exists.
 The checkpoint is the index's, atomically with applies; broker-side
 offsets are never committed. One `Apply` per poll per partition batch,
-preserving offset order. Null-key records: skipped, counted.
+preserving offset order. Null-key records: skipped, counted. The
+partition set is re-discovered every `--metadata-refresh`; partitions new
+since the last discovery are assigned from their checkpoint (the log
+start when none exists), and partitions already assigned are never
+re-assigned.
 
 ### `fetch/`
 
@@ -184,9 +188,10 @@ body with per-partition checkpoint and log-end lag.
 Flags, each with an env fallback (flag wins): `--brokers`/`RPKV_BROKERS`
 (comma-separated, required), `--topics`/`RPKV_TOPICS` (comma-separated,
 required), `--data-dir`/`RPKV_DATA_DIR` (default `./rpkv-data`),
-`--listen`/`RPKV_LISTEN` (default `:8080`). MVP speaks PLAINTEXT;
-SASL/TLS is a later roadmap task (env names will follow the protocol:
-`RPKV_SASL_USER`, not vendor names).
+`--listen`/`RPKV_LISTEN` (default `:8080`),
+`--metadata-refresh`/`RPKV_METADATA_REFRESH` (default `30s`). MVP speaks
+PLAINTEXT; SASL/TLS is a later roadmap task (env names will follow the
+protocol: `RPKV_SASL_USER`, not vendor names).
 
 ### `metrics/`
 

@@ -118,3 +118,13 @@ func (s *Sinks) RegisterLag(topic string, cp checkpointReader, src logEndSource)
 	}
 	return nil
 }
+
+// RegisterAssignedPartitions registers one assigned-partitions collector
+// for topic onto the registry.
+func (s *Sinks) RegisterAssignedPartitions(topic string, src assignedPartitionsSource) error {
+	c := newAssignedCollector(topic, src)
+	if err := s.registry.Register(c); err != nil {
+		return fmt.Errorf("promsink: register assigned partitions collector %q: %w", topic, err)
+	}
+	return nil
+}

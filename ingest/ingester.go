@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 	"sync/atomic"
 
 	"github.com/twmb/franz-go/pkg/kadm"
@@ -26,6 +27,9 @@ type Ingester struct {
 	logger          *slog.Logger
 	skippedNullKeys atomic.Int64
 	metrics         Metrics
+
+	mu       sync.Mutex
+	assigned map[int32]struct{}
 }
 
 // New wires an already-configured kgo client and index into an
@@ -39,10 +43,11 @@ func New(
 	opts ...Option,
 ) *Ingester {
 	in := &Ingester{
-		client: client,
-		index:  index,
-		topic:  topic,
-		logger: logger,
+		client:   client,
+		index:    index,
+		topic:    topic,
+		logger:   logger,
+		assigned: make(map[int32]struct{}),
 		metrics: Metrics{
 			ApplyBatchSize:  metrics.NewNoopHistogram(),
 			NullKeysSkipped: metrics.NewNoopCounter(),
@@ -60,30 +65,9 @@ func New(
 // applies one atomic index.Apply per partition carrying that partition's
 // records and its advanced checkpoint.
 func (in *Ingester) Run(ctx context.Context) error {
-	admin := kadm.NewClient(in.client)
-
-	topicDetails, err := admin.ListTopics(ctx, in.topic)
-	if err != nil {
-		return fmt.Errorf("ingest: list topic %q: %w", in.topic, err)
+	if err := in.syncPartitions(ctx); err != nil {
+		return err
 	}
-	detail, ok := topicDetails[in.topic]
-	if !ok {
-		return fmt.Errorf("ingest: list topic %q: not found", in.topic)
-	}
-	if detail.Err != nil {
-		return fmt.Errorf("ingest: list topic %q: %w", in.topic, detail.Err)
-	}
-
-	offsets := make(map[int32]kgo.Offset, len(detail.Partitions))
-	for partition := range detail.Partitions {
-		checkpoint, err := in.index.Checkpoint(partition)
-		if err != nil {
-			return fmt.Errorf("ingest: checkpoint partition %d: %w", partition, err)
-		}
-		offsets[partition] = resumeOffset(checkpoint)
-	}
-
-	in.client.AddConsumePartitions(map[string]map[int32]kgo.Offset{in.topic: offsets})
 
 	for {
 		fetches := in.client.PollFetches(ctx)
@@ -129,6 +113,68 @@ func (in *Ingester) Run(ctx context.Context) error {
 // since construction. Safe for concurrent use.
 func (in *Ingester) SkippedNullKeys() int64 {
 	return in.skippedNullKeys.Load()
+}
+
+// syncPartitions lists the topic's current partitions and assigns for
+// direct consumption every partition not already in in.assigned, each
+// starting at its checkpoint+1 (or the log start when no checkpoint
+// exists). Partitions already assigned are left alone.
+func (in *Ingester) syncPartitions(ctx context.Context) error {
+	admin := kadm.NewClient(in.client)
+
+	topicDetails, err := admin.ListTopics(ctx, in.topic)
+	if err != nil {
+		return fmt.Errorf("ingest: list topic %q: %w", in.topic, err)
+	}
+	detail, ok := topicDetails[in.topic]
+	if !ok {
+		return fmt.Errorf("ingest: list topic %q: not found", in.topic)
+	}
+	if detail.Err != nil {
+		return fmt.Errorf("ingest: list topic %q: %w", in.topic, detail.Err)
+	}
+
+	in.mu.Lock()
+	defer in.mu.Unlock()
+
+	offsets := make(map[int32]kgo.Offset)
+	for partition := range detail.Partitions {
+		if _, ok := in.assigned[partition]; ok {
+			continue
+		}
+		checkpoint, err := in.index.Checkpoint(partition)
+		if err != nil {
+			return fmt.Errorf("ingest: checkpoint partition %d: %w", partition, err)
+		}
+		offsets[partition] = resumeOffset(checkpoint)
+	}
+
+	if len(offsets) == 0 {
+		return nil
+	}
+
+	in.client.AddConsumePartitions(map[string]map[int32]kgo.Offset{in.topic: offsets})
+	for partition := range offsets {
+		in.assigned[partition] = struct{}{}
+	}
+
+	return nil
+}
+
+// SyncPartitions re-discovers the topic's current partition set and
+// assigns for consumption any partition not already assigned. Safe to call
+// concurrently with Run's poll loop.
+func (in *Ingester) SyncPartitions(ctx context.Context) error {
+	return in.syncPartitions(ctx)
+}
+
+// AssignedPartitions reports how many partitions are currently assigned
+// for consumption. Safe for concurrent use.
+func (in *Ingester) AssignedPartitions() int {
+	in.mu.Lock()
+	defer in.mu.Unlock()
+
+	return len(in.assigned)
 }
 
 // resumeOffset maps an index checkpoint to the kgo offset to resume from:
