@@ -70,6 +70,22 @@ if [[ ${#production_go[@]} -eq 0 ]]; then
     tests_only=true
 fi
 
+# Two Go modules live in this repo: the root module and operator/ (its own
+# go.mod). `go test ./... -coverpkg=./...` and `go list -m` only see
+# whichever module they run in, so a changed operator/ file never matches
+# the root module's import-path prefix and would otherwise land in the "no
+# coverage lines matched" branch. Split by module up front and measure each
+# where it lives.
+root_go=()
+operator_go=()
+for f in ${production_go[@]+"${production_go[@]}"}; do
+    if [[ "$f" == operator/* ]]; then
+        operator_go+=("$f")
+    else
+        root_go+=("$f")
+    fi
+done
+
 # `just check` is fmt-check, generate-check, vet across build tags, lint,
 # build and the race suite. Its exit code is the single most informative
 # deterministic fact about a block, and it was never part of the receipt.
@@ -85,49 +101,119 @@ uncovered_json='[]'
 functions_json='[]'
 
 if [[ "$tests_only" == "false" ]]; then
-    cover_profile="$(mktemp)"
-    cover_func="$(mktemp)"
-    trap 'rm -f "$cover_profile" "$cover_func"' EXIT
+    root_cover_profile="$(mktemp)"
+    root_cover_func="$(mktemp)"
+    operator_cover_profile="$(mktemp)"
+    operator_cover_func="$(mktemp)"
+    trap 'rm -f "$root_cover_profile" "$root_cover_func" "$operator_cover_profile" "$operator_cover_func"' EXIT
 
-    set +e
-    go test ./... -coverpkg=./... -coverprofile="$cover_profile" >"${receipt_dir}/coverage.log" 2>&1
-    cover_exit=$?
-    set -e
+    coverage_ok=true
+    fail_reasons=()
+    all_functions_json='[]'
 
-    if [[ $cover_exit -ne 0 ]]; then
-        coverage_reason="go test with coverage failed (exit ${cover_exit}); see coverage.log"
-    else
-        go tool cover -func="$cover_profile" >"$cover_func"
+    if [[ ${#root_go[@]} -gt 0 ]]; then
+        set +e
+        go test ./... -coverpkg=./... -coverprofile="$root_cover_profile" >"${receipt_dir}/coverage.log" 2>&1
+        cover_exit=$?
+        set -e
+
+        msg=""
+        if [[ $cover_exit -ne 0 ]]; then
+            msg="go test with coverage failed (exit ${cover_exit}); see coverage.log"
+        else
+            go tool cover -func="$root_cover_profile" >"$root_cover_func"
+
+            # `go tool cover -func` emits "<module>/<file>:<line>:\t<func>\t<pct>%"
+            # - an import path, not a repo-relative one, so the changed files
+            # are matched with the module prefix in front. Keep only those, so
+            # the receipt describes this block rather than the repo's overall
+            # average: an average is exactly the number that hides a new
+            # untested function.
+            module="$(go list -m)"
+            pattern="$(printf "${module}/%s\n" "${root_go[@]}" | paste -sd'|' -)"
+            matched="$(grep -E "^($pattern):" "$root_cover_func" || true)"
+            if [[ -z "$matched" ]]; then
+                # Not "everything is covered" - nothing was measured. Silence
+                # here once meant the script died mid-way writing no receipt
+                # at all; a block that reaches the gate unmeasured must say
+                # so.
+                msg="no coverage lines matched the changed production files"
+            else
+                root_functions_json="$(
+                    awk -F'\t+' '{
+                        split($1, loc, ":")
+                        gsub(/%/, "", $3)
+                        printf "%s\t%s\t%s\n", loc[1], $2, $3
+                    }' <<<"$matched" |
+                        jq -R -s 'split("\n") | map(select(length > 0)) | map(split("\t")) |
+                                  map({file: .[0], func: .[1], pct: (.[2] | tonumber)})'
+                )"
+                all_functions_json="$(jq -n --argjson a "$all_functions_json" --argjson b "$root_functions_json" '$a + $b')"
+            fi
+        fi
+
+        if [[ -n "$msg" ]]; then
+            coverage_ok=false
+            if [[ ${#operator_go[@]} -gt 0 ]]; then
+                fail_reasons+=("root: ${msg}")
+            else
+                fail_reasons+=("$msg")
+            fi
+        fi
+    fi
+
+    if [[ ${#operator_go[@]} -gt 0 ]]; then
+        set +e
+        (cd operator && go test ./... -coverpkg=./... -coverprofile="$operator_cover_profile") >>"${receipt_dir}/coverage.log" 2>&1
+        cover_exit=$?
+        set -e
+
+        msg=""
+        if [[ $cover_exit -ne 0 ]]; then
+            msg="go test with coverage failed (exit ${cover_exit}); see coverage.log"
+        else
+            (cd operator && go tool cover -func="$operator_cover_profile") >"$operator_cover_func"
+
+            operator_module="$(cd operator && go list -m)"
+            operator_relative=("${operator_go[@]#operator/}")
+            pattern="$(printf "${operator_module}/%s\n" "${operator_relative[@]}" | paste -sd'|' -)"
+            matched="$(grep -E "^($pattern):" "$operator_cover_func" || true)"
+            if [[ -z "$matched" ]]; then
+                msg="no coverage lines matched the changed production files"
+            else
+                operator_functions_json="$(
+                    awk -F'\t+' '{
+                        split($1, loc, ":")
+                        gsub(/%/, "", $3)
+                        printf "%s\t%s\t%s\n", loc[1], $2, $3
+                    }' <<<"$matched" |
+                        jq -R -s 'split("\n") | map(select(length > 0)) | map(split("\t")) |
+                                  map({file: .[0], func: .[1], pct: (.[2] | tonumber)})' |
+                        jq --arg mod "$operator_module" \
+                            'map(.file |= (ltrimstr($mod + "/") | "operator/" + .))'
+                )"
+                all_functions_json="$(jq -n --argjson a "$all_functions_json" --argjson b "$operator_functions_json" '$a + $b')"
+            fi
+        fi
+
+        if [[ -n "$msg" ]]; then
+            coverage_ok=false
+            if [[ ${#root_go[@]} -gt 0 ]]; then
+                fail_reasons+=("operator: ${msg}")
+            else
+                fail_reasons+=("$msg")
+            fi
+        fi
+    fi
+
+    if [[ "$coverage_ok" == "true" ]]; then
         coverage_measured=true
         coverage_reason="measured over the functions defined in the changed production files"
-
-        # `go tool cover -func` emits "<module>/<file>:<line>:\t<func>\t<pct>%"
-        # - an import path, not a repo-relative one, so the changed files
-        # are matched with the module prefix in front. Keep only those, so
-        # the receipt describes this block rather than the repo's overall
-        # average: an average is exactly the number that hides a new
-        # untested function.
-        module="$(go list -m)"
-        pattern="$(printf "${module}/%s\n" "${production_go[@]}" | paste -sd'|' -)"
-        matched="$(grep -E "^($pattern):" "$cover_func" || true)"
-        if [[ -z "$matched" ]]; then
-            # Not "everything is covered" - nothing was measured. Silence
-            # here once meant the script died mid-way writing no receipt at
-            # all; a block that reaches the gate unmeasured must say so.
-            coverage_measured=false
-            coverage_reason="no coverage lines matched the changed production files"
-        else
-            functions_json="$(
-                awk -F'\t+' '{
-                    split($1, loc, ":")
-                    gsub(/%/, "", $3)
-                    printf "%s\t%s\t%s\n", loc[1], $2, $3
-                }' <<<"$matched" |
-                    jq -R -s 'split("\n") | map(select(length > 0)) | map(split("\t")) |
-                              map({file: .[0], func: .[1], pct: (.[2] | tonumber)})'
-            )"
-            uncovered_json="$(jq '[.[] | select(.pct == 0)]' <<<"$functions_json")"
-        fi
+        functions_json="$all_functions_json"
+        uncovered_json="$(jq '[.[] | select(.pct == 0)]' <<<"$functions_json")"
+    else
+        coverage_measured=false
+        coverage_reason="$(IFS='; '; echo "${fail_reasons[*]}")"
     fi
 fi
 
