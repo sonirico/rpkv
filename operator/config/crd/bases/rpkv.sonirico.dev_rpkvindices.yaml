@@ -56,6 +56,7 @@ spec:
                 format: int32
                 type: integer
               storage:
+                default: {}
                 description: RpkvIndexStorage sizes each shard's PersistentVolumeClaim.
                 properties:
                   size:
