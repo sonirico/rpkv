@@ -1,0 +1,2 @@
+Port-forward the router: kubectl port-forward svc/{{ include "rpkv.fullname" . }}-router {{ .Values.service.port }}
+Then read a key: GET /v1/kv/<topic>/<key>

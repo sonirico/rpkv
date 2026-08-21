@@ -220,3 +220,11 @@ verify-receipts sha="":
 # Build the container image (multi-stage, distroless static runtime).
 docker-build:
     docker build -t rpkv:dev .
+
+# Lint the Helm chart through the alpine/helm image.
+helm-lint:
+    docker run --rm -v {{ justfile_directory() }}/deploy/helm/rpkv:/apps alpine/helm:latest lint /apps --set brokers=redpanda:9092 --set topics=kv
+
+# Render the Helm chart through the alpine/helm image.
+helm-template:
+    docker run --rm -v {{ justfile_directory() }}/deploy/helm/rpkv:/apps alpine/helm:latest template rpkv /apps --set brokers=redpanda:9092 --set topics=kv
