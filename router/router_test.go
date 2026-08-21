@@ -58,13 +58,15 @@ func handlerStatus(status int) http.HandlerFunc {
 	}
 }
 
-func handlerOK(body string, headers map[string]string) http.HandlerFunc {
+func newTestHandlerOK(t *testing.T, body string, headers map[string]string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		for k, v := range headers {
 			w.Header().Set(k, v)
 		}
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(body))
+		if _, err := w.Write([]byte(body)); err != nil {
+			t.Errorf("write shard response: %v", err)
+		}
 	}
 }
 
@@ -84,7 +86,7 @@ func TestRouter(t *testing.T) {
 		{
 			name: "single shard 200 proxies body and headers",
 			handlers: []http.HandlerFunc{
-				handlerOK("value-a", map[string]string{
+				newTestHandlerOK(t, "value-a", map[string]string{
 					"X-Rpkv-Partition":  "1",
 					"X-Rpkv-Offset":     "10",
 					"X-Rpkv-Checkpoint": "20",
@@ -105,8 +107,8 @@ func TestRouter(t *testing.T) {
 		{
 			name: "two shards 200 picks highest timestamp",
 			handlers: []http.HandlerFunc{
-				handlerOK("value-old", map[string]string{"X-Rpkv-Timestamp": "100"}),
-				handlerOK("value-new", map[string]string{"X-Rpkv-Timestamp": "200"}),
+				newTestHandlerOK(t, "value-old", map[string]string{"X-Rpkv-Timestamp": "100"}),
+				newTestHandlerOK(t, "value-new", map[string]string{"X-Rpkv-Timestamp": "200"}),
 			},
 			wantStatus:    http.StatusOK,
 			wantBody:      "value-new",
@@ -116,8 +118,8 @@ func TestRouter(t *testing.T) {
 		{
 			name: "two shards 200 one missing timestamp header, the other wins",
 			handlers: []http.HandlerFunc{
-				handlerOK("value-missing", nil),
-				handlerOK("value-timed", map[string]string{"X-Rpkv-Timestamp": "50"}),
+				newTestHandlerOK(t, "value-missing", nil),
+				newTestHandlerOK(t, "value-timed", map[string]string{"X-Rpkv-Timestamp": "50"}),
 			},
 			wantStatus:    http.StatusOK,
 			wantBody:      "value-timed",

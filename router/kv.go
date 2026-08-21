@@ -103,9 +103,10 @@ func (s *Router) fetchShard(r *http.Request, shard string, results chan<- shardR
 		results <- shardResult{shard: shard, err: err}
 		return
 	}
-	defer resp.Body.Close()
-
 	body, err := io.ReadAll(resp.Body)
+	if closeErr := resp.Body.Close(); err == nil {
+		err = closeErr
+	}
 	if err != nil {
 		results <- shardResult{shard: shard, err: err}
 		return
