@@ -172,6 +172,17 @@ Staleness is per-replica, bounded by ingest lag, and observable as
 `rpkv_ingest_lag`. Rationale and accepted costs:
 [ADR-008](docs/adr/008-deployment-replication.md).
 
+### Kubernetes
+
+The Helm chart lives at [`deploy/helm/rpkv/`](deploy/helm/rpkv/). Shards
+run as a StatefulSet, one PVC per shard, each pod deriving the partition
+it owns from its ordinal (`RPKV_PARTITION_FROM_ORDINAL`). The router runs
+as a Deployment, fanning out to the shard headless service.
+`shards.replicas` must equal the indexed topic's partition count. Local
+verification is `just kind-smoke`, which stands up a kind cluster and
+deploys the chart end to end; `just helm-lint` and `just helm-template`
+run the faster static checks.
+
 ## Benchmarks
 
 Numbers on record live under [`docs/benchmarks/`](docs/benchmarks/), each

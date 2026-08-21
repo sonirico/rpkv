@@ -165,7 +165,7 @@ detect and report but not resolve.
       reproducing command. **This task is the phase's exit criterion: if
       the fan-out cost is not paid back, task 3 is reverted and ADR-008
       stands unchanged.**
-- [ ] Helm chart: shards as a StatefulSet with one PVC per shard plus a
+- [x] Helm chart: shards as a StatefulSet with one PVC per shard plus a
       router Deployment.
       Verification: `helm template` renders and the chart deploys
       against a local cluster.
