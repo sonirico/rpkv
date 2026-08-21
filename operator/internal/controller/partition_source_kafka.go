@@ -13,9 +13,10 @@ type kafkaPartitionSource struct {
 	admin *kadm.Client
 }
 
-// newKafkaPartitionSource wires an already-configured kadm client into a
-// kafkaPartitionSource.
-func newKafkaPartitionSource(admin *kadm.Client) *kafkaPartitionSource {
+// NewKafkaPartitionSource wires an already-configured kadm client into a
+// kafkaPartitionSource. Exported so cmd/main.go's wiring can build one
+// per RpkvIndex's seed brokers.
+func NewKafkaPartitionSource(admin *kadm.Client) *kafkaPartitionSource {
 	return &kafkaPartitionSource{admin: admin}
 }
 
