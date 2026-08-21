@@ -137,20 +137,23 @@ func TestOwnership(t *testing.T) {
 		}
 	})
 
-	t.Run("EnsureOwnership adopts an empty directory and persists across reopen", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"EnsureOwnership adopts an empty directory and persists across reopen",
+		func(t *testing.T) {
+			t.Parallel()
 
-		ix, fs := newTestOwnershipIndex(t)
-		owned := index.NewOwnership([]int32{0})
+			ix, fs := newTestOwnershipIndex(t)
+			owned := index.NewOwnership([]int32{0})
 
-		adoptErr := ix.EnsureOwnership(owned)
-		require.NoError(t, adoptErr)
+			adoptErr := ix.EnsureOwnership(owned)
+			require.NoError(t, adoptErr)
 
-		reopened := reopenTestOwnershipIndex(t, ix, fs)
-		confirmErr := reopened.EnsureOwnership(owned)
+			reopened := reopenTestOwnershipIndex(t, ix, fs)
+			confirmErr := reopened.EnsureOwnership(owned)
 
-		assert.NoError(t, confirmErr)
-	})
+			assert.NoError(t, confirmErr)
+		},
+	)
 
 	t.Run("EnsureOwnership rejects a mismatching reopen", func(t *testing.T) {
 		t.Parallel()
@@ -165,24 +168,30 @@ func TestOwnership(t *testing.T) {
 		assert.True(t, errors.Is(mismatchErr, index.ErrOwnershipMismatch))
 	})
 
-	t.Run("EnsureOwnership on a legacy directory with checkpoints but no record rejects a narrow claim", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"EnsureOwnership on a legacy directory with checkpoints but no record rejects a narrow claim",
+		func(t *testing.T) {
+			t.Parallel()
 
-		legacy, _ := newTestLegacyOwnershipIndex(t)
+			legacy, _ := newTestLegacyOwnershipIndex(t)
 
-		mismatchErr := legacy.EnsureOwnership(index.NewOwnership([]int32{0}))
+			mismatchErr := legacy.EnsureOwnership(index.NewOwnership([]int32{0}))
 
-		require.Error(t, mismatchErr)
-		assert.True(t, errors.Is(mismatchErr, index.ErrOwnershipMismatch))
-	})
+			require.Error(t, mismatchErr)
+			assert.True(t, errors.Is(mismatchErr, index.ErrOwnershipMismatch))
+		},
+	)
 
-	t.Run("EnsureOwnership on a legacy directory with checkpoints but no record accepts an all claim", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"EnsureOwnership on a legacy directory with checkpoints but no record accepts an all claim",
+		func(t *testing.T) {
+			t.Parallel()
 
-		legacy, _ := newTestLegacyOwnershipIndex(t)
+			legacy, _ := newTestLegacyOwnershipIndex(t)
 
-		allErr := legacy.EnsureOwnership(index.NewOwnership(nil))
+			allErr := legacy.EnsureOwnership(index.NewOwnership(nil))
 
-		assert.NoError(t, allErr)
-	})
+			assert.NoError(t, allErr)
+		},
+	)
 }
