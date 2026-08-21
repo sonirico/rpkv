@@ -1,0 +1,8 @@
+.git
+.claude
+.github
+docs
+githooks
+scripts
+rpkv-data
+*.md

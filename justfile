@@ -216,3 +216,7 @@ quality-pass:
 # every block.
 verify-receipts sha="":
     bash scripts/verify-receipts.sh {{ sha }}
+
+# Build the container image (multi-stage, distroless static runtime).
+docker-build:
+    docker build -t rpkv:dev .
