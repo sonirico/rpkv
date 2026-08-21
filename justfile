@@ -178,6 +178,9 @@ bench-rebuild:
 bench-shard-ingest:
     RPKV_BENCH=1 RPKV_BENCH_OUT={{justfile_directory()}}/docs/benchmarks/sharding-ingest-rate.json go test -tags integration -p 1 -run TestShardIngestRateBenchmark ./internal/app -v -count=1
 
+bench-router-read:
+    RPKV_BENCH=1 RPKV_BENCH_OUT={{justfile_directory()}}/docs/benchmarks/router-read-latency.json go test -tags integration -p 1 -run TestRouterReadLatencyBenchmark ./internal/app -v -count=1
+
 # RPKV_TEST_TIERED provisions a MinIO resource alongside the self-provisioned
 # broker and boots it with tiered storage enabled; internal/rptest.Main
 # handles both, no manual setup needed beyond a running Docker daemon.
