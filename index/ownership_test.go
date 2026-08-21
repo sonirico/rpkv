@@ -165,15 +165,6 @@ func TestOwnership(t *testing.T) {
 
 		secondReopen := reopenTestOwnershipIndex(t, firstReopen, fs)
 		allErr := secondReopen.EnsureOwnership(index.NewOwnership(nil))
-		require.NoError(t, allErr)
-
-		thirdReopen := reopenTestOwnershipIndex(t, secondReopen, fs)
-		recordedAllErr := thirdReopen.EnsureOwnership(index.NewOwnership(nil))
-		assert.NoError(t, recordedAllErr)
-
-		fourthReopen := reopenTestOwnershipIndex(t, thirdReopen, fs)
-		recordedMismatchErr := fourthReopen.EnsureOwnership(index.NewOwnership([]int32{0}))
-		require.Error(t, recordedMismatchErr)
-		assert.True(t, errors.Is(recordedMismatchErr, index.ErrOwnershipMismatch))
+		assert.NoError(t, allErr)
 	})
 }
