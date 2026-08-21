@@ -65,9 +65,14 @@ func New(cfg config.Config, logger *slog.Logger, clk clock.Clock) (*App, error) 
 
 	if cfg.Mode == config.ModeRouter {
 		return &App{
-			cfg:            cfg,
-			logger:         logger,
-			handler:        router.New(cfg.Shards, &http.Client{}, logger, router.WithMetrics(sinks.RouterMetrics())),
+			cfg:    cfg,
+			logger: logger,
+			handler: router.New(
+				cfg.Shards,
+				&http.Client{},
+				logger,
+				router.WithMetrics(sinks.RouterMetrics()),
+			),
 			metricsHandler: sinks.Handler(),
 			addrCh:         make(chan string, 1),
 		}, nil
