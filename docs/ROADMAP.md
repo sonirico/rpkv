@@ -141,10 +141,10 @@ re-partitioning a compacted topic leaves a live record for the same key in
 two partitions with no cross-partition order to resolve them, which rpkv can
 detect and report but not resolve.
 
-- [ ] `ingest/` refreshes the topic's partition set on a ticker.
+- [x] `ingest/` refreshes the topic's partition set on a ticker.
       Verification: an integration test grows a live topic and observes a
       key in a new partition resolve through `GET /v1/kv/...`.
-- [ ] Topic shape (`cleanup.policy`, partition count) exposed on
+- [x] Topic shape (`cleanup.policy`, partition count) exposed on
       `/healthz` and as Prometheus gauges.
       Verification: an integration test reads both fields from
       `/healthz` and both gauges from `/metrics`.
