@@ -183,6 +183,13 @@ verification is `just kind-smoke`, which stands up a kind cluster and
 deploys the chart end to end; `just helm-lint` and `just helm-template`
 run the faster static checks.
 
+The operator at [`operator/`](operator/) reconciles a topic's partition
+count into its shard StatefulSet's replica count, grow-only, driven by
+conditions taken from the shards' own `/healthz`. It is verified locally
+via `just operator-envtest` (reconcile logic against a real API server)
+and `just kind-operator-e2e` (the built operator image against a kind
+cluster and a real Redpanda pod).
+
 ## Benchmarks
 
 Numbers on record live under [`docs/benchmarks/`](docs/benchmarks/), each

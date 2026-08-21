@@ -169,7 +169,7 @@ detect and report but not resolve.
       router Deployment.
       Verification: `helm template` renders and the chart deploys
       against a local cluster.
-- [ ] Operator in a separate Go module (`operator/go.mod`), watching the
+- [x] Operator in a separate Go module (`operator/go.mod`), watching the
       topic over the Kafka protocol, reconciling partition count to
       StatefulSet replicas, grow-only.
       Verification: an `envtest` reconcile suite plus a `kind`
