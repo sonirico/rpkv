@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -20,18 +21,28 @@ import (
 )
 
 // testPartitionSource is a stub partitionSource returning a fixed
-// partition count or error.
+// partition count or error. The partition count is held in an
+// atomic.Int32 so the envtest suite can mutate it from the test
+// goroutine while the manager's reconcile loop reads it concurrently.
 type testPartitionSource struct {
-	partitions int32
+	partitions atomic.Int32
 	err        error
 }
 
 func newTestPartitionSource(partitions int32, err error) *testPartitionSource {
-	return &testPartitionSource{partitions: partitions, err: err}
+	s := &testPartitionSource{err: err}
+	s.partitions.Store(partitions)
+	return s
 }
 
 func (s *testPartitionSource) Partitions(_ context.Context, _ string) (int32, error) {
-	return s.partitions, s.err
+	return s.partitions.Load(), s.err
+}
+
+// SetPartitions updates the partition count returned by subsequent
+// Partitions calls.
+func (s *testPartitionSource) SetPartitions(partitions int32) {
+	s.partitions.Store(partitions)
 }
 
 // testHealthSource is a stub healthSource returning a fixed shape or
