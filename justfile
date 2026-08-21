@@ -265,3 +265,7 @@ helm-template:
 # Deploy the chart on a throwaway kind cluster and read a key through the router.
 kind-smoke:
     bash scripts/kind-smoke.sh
+
+# Deploy the operator on a throwaway kind cluster and grow an RpkvIndex's shards via topic growth.
+kind-operator-e2e:
+    bash scripts/kind-operator-e2e.sh

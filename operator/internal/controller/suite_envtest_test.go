@@ -74,7 +74,7 @@ func TestEnvtest(t *testing.T) {
 	reconciler := NewReconciler(
 		mgr.GetClient(),
 		mgr.GetScheme(),
-		func(_ []string) (partitionSource, error) { return ps, nil },
+		func(_ []string) (PartitionSource, error) { return ps, nil },
 		hs,
 	)
 	require.NoError(t, reconciler.SetupWithManager(mgr))

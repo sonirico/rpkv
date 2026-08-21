@@ -25,9 +25,9 @@ type httpHealthSource struct {
 	client *http.Client
 }
 
-// newHTTPHealthSource wires an already-configured HTTP client into an
-// httpHealthSource.
-func newHTTPHealthSource(client *http.Client) *httpHealthSource {
+// NewHTTPHealthSource wires an already-configured HTTP client into an
+// httpHealthSource. Exported so cmd/main.go's wiring can build one.
+func NewHTTPHealthSource(client *http.Client) *httpHealthSource {
 	return &httpHealthSource{client: client}
 }
 

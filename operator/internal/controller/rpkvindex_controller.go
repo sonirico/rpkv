@@ -36,9 +36,10 @@ const (
 	requeueInterval = 30 * time.Second
 )
 
-// partitionSourceFactory builds a partitionSource over the given seed
-// brokers.
-type partitionSourceFactory func(brokers []string) (partitionSource, error)
+// PartitionSourceFactory builds a PartitionSource over the given seed
+// brokers. Exported so cmd/main.go's wiring can spell it when building
+// the kafka-backed factory closure.
+type PartitionSourceFactory func(brokers []string) (PartitionSource, error)
 
 // Reconciler reconciles a RpkvIndex object into its shard and router
 // workloads.
@@ -46,7 +47,7 @@ type Reconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 
-	partitionsFor partitionSourceFactory
+	partitionsFor PartitionSourceFactory
 	health        healthSource
 }
 
@@ -55,7 +56,7 @@ type Reconciler struct {
 func NewReconciler(
 	c client.Client,
 	scheme *runtime.Scheme,
-	partitionsFor partitionSourceFactory,
+	partitionsFor PartitionSourceFactory,
 	health healthSource,
 ) *Reconciler {
 	return &Reconciler{
