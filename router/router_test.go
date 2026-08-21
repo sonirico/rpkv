@@ -199,7 +199,11 @@ func TestRouter(t *testing.T) {
 	t.Run("healthz returns mode and shards", func(t *testing.T) {
 		t.Parallel()
 
-		fixture := newTestRouter(t, handlerStatus(http.StatusNotFound), handlerStatus(http.StatusNotFound))
+		fixture := newTestRouter(
+			t,
+			handlerStatus(http.StatusNotFound),
+			handlerStatus(http.StatusNotFound),
+		)
 		req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
 		rec := httptest.NewRecorder()
 
