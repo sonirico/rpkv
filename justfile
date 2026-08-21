@@ -228,3 +228,7 @@ helm-lint:
 # Render the Helm chart through the alpine/helm image.
 helm-template:
     docker run --rm -v {{ justfile_directory() }}/deploy/helm/rpkv:/apps alpine/helm:latest template rpkv /apps --set brokers=redpanda:9092 --set topics=kv
+
+# Deploy the chart on a throwaway kind cluster and read a key through the router.
+kind-smoke:
+    bash scripts/kind-smoke.sh
