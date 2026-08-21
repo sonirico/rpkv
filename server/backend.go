@@ -29,10 +29,11 @@ type Backend struct {
 	index   indexReader
 	fetcher valueFetcher
 	offsets offsetSource
+	shape   shapeSource
 }
 
-// NewBackend wires an already-built index reader, value fetcher and offset
-// source into a Backend.
-func NewBackend(ix indexReader, f valueFetcher, o offsetSource) Backend {
-	return Backend{index: ix, fetcher: f, offsets: o}
+// NewBackend wires an already-built index reader, value fetcher, offset
+// source and shape source into a Backend.
+func NewBackend(ix indexReader, f valueFetcher, o offsetSource, s shapeSource) Backend {
+	return Backend{index: ix, fetcher: f, offsets: o, shape: s}
 }

@@ -145,7 +145,11 @@ all partitions (`kgo.ConsumePartitions`), each starting at
 `checkpoint+1`, or the partition's log start when no checkpoint exists.
 The checkpoint is the index's, atomically with applies; broker-side
 offsets are never committed. One `Apply` per poll per partition batch,
-preserving offset order. Null-key records: skipped, counted.
+preserving offset order. Null-key records: skipped, counted. The
+partition set is re-discovered every `--metadata-refresh`; partitions new
+since the last discovery are assigned from their checkpoint (the log
+start when none exists), and partitions already assigned are never
+re-assigned.
 
 ### `fetch/`
 
@@ -177,16 +181,18 @@ Supersede handling: on `Superseded`, the server polls
 `index.Checkpoint(ptr.Partition)` until it passes the fetched-forward
 offset, re-resolves and re-fetches; total budget **2s**, waits through the
 `clock.Clock` interface (mockable). `GET /healthz` -> `200` always, JSON
-body with per-partition checkpoint and log-end lag.
+body with per-partition checkpoint and log-end lag, plus per-topic
+`partition_count` and `cleanup_policy`.
 
 ### `cmd/rpkv` configuration
 
 Flags, each with an env fallback (flag wins): `--brokers`/`RPKV_BROKERS`
 (comma-separated, required), `--topics`/`RPKV_TOPICS` (comma-separated,
 required), `--data-dir`/`RPKV_DATA_DIR` (default `./rpkv-data`),
-`--listen`/`RPKV_LISTEN` (default `:8080`). MVP speaks PLAINTEXT;
-SASL/TLS is a later roadmap task (env names will follow the protocol:
-`RPKV_SASL_USER`, not vendor names).
+`--listen`/`RPKV_LISTEN` (default `:8080`),
+`--metadata-refresh`/`RPKV_METADATA_REFRESH` (default `30s`). MVP speaks
+PLAINTEXT; SASL/TLS is a later roadmap task (env names will follow the
+protocol: `RPKV_SASL_USER`, not vendor names).
 
 ### `metrics/`
 
@@ -211,12 +217,17 @@ without prometheus. Six frozen metric names:
 | `rpkv_ingest_apply_batch_size` | Histogram, buckets `1,10,50,100,500,1000,5000` | `topic` |
 | `rpkv_ingest_null_keys_skipped_total` | Counter | `topic` |
 | `rpkv_ingest_lag` | Gauge | `topic`, `partition` |
+| `rpkv_topic_partitions` | Gauge | `topic` |
+| `rpkv_topic_compacted` | Gauge | `topic` |
 
 `rpkv_ingest_lag` is computed at scrape time by a `prometheus.Collector`
 over the same checkpoint and log-end-offset data `GET /healthz` reports
 (`max(0, logEnd-checkpoint-1)` per partition), not updated on the ingest
-hot path. `GET /metrics` serves a private `*prometheus.Registry` - never
-the global default registry.
+hot path. `rpkv_topic_partitions` and `rpkv_topic_compacted` are likewise
+computed at scrape time, from the same partition count and cleanup policy
+`GET /healthz` reports; `rpkv_topic_compacted` is `1` when the topic's
+`cleanup.policy` contains `compact`, else `0`. `GET /metrics` serves a
+private `*prometheus.Registry` - never the global default registry.
 
 ### Package layout
 

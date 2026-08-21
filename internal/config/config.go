@@ -6,22 +6,26 @@ package config
 import (
 	"errors"
 	"flag"
+	"fmt"
 	"strings"
+	"time"
 
 	"github.com/sonirico/vago/ent"
 )
 
 const (
-	defaultDataDir = "./rpkv-data"
-	defaultListen  = ":8080"
+	defaultDataDir         = "./rpkv-data"
+	defaultListen          = ":8080"
+	defaultMetadataRefresh = "30s"
 )
 
 // Config holds the process configuration for cmd/rpkv.
 type Config struct {
-	Brokers []string
-	Topics  []string
-	DataDir string
-	Listen  string
+	Brokers         []string
+	Topics          []string
+	DataDir         string
+	Listen          string
+	MetadataRefresh time.Duration
 }
 
 // Parse reads the configuration from args per SPEC: each flag falls back
@@ -49,6 +53,11 @@ func Parse(args []string) (Config, error) {
 		ent.Get("RPKV_LISTEN", defaultListen),
 		"HTTP listen address (env RPKV_LISTEN)",
 	)
+	metadataRefresh := fs.String(
+		"metadata-refresh",
+		ent.Get("RPKV_METADATA_REFRESH", defaultMetadataRefresh),
+		"partition metadata refresh interval (env RPKV_METADATA_REFRESH)",
+	)
 
 	if err := fs.Parse(args); err != nil {
 		return Config{}, err
@@ -60,11 +69,20 @@ func Parse(args []string) (Config, error) {
 		return Config{}, errors.New("config: topics required (--topics or RPKV_TOPICS)")
 	}
 
+	refresh, err := time.ParseDuration(*metadataRefresh)
+	if err != nil {
+		return Config{}, fmt.Errorf("config: metadata-refresh: %w", err)
+	}
+	if refresh <= 0 {
+		return Config{}, errors.New("config: metadata-refresh must be positive")
+	}
+
 	return Config{
-		Brokers: splitList(*brokers),
-		Topics:  splitList(*topics),
-		DataDir: *dataDir,
-		Listen:  *listen,
+		Brokers:         splitList(*brokers),
+		Topics:          splitList(*topics),
+		DataDir:         *dataDir,
+		Listen:          *listen,
+		MetadataRefresh: refresh,
 	}, nil
 }
 

@@ -132,3 +132,48 @@ never silently becomes `[x]`.
 Phase 3's artifacts (contract suite + benchmarks) are the resume gate for
 `../redpanda/rpkv-plan/UPSTREAM-PLAN.md`. When they exist, that plan wakes
 up - over there, not here.
+
+## Phase 4 - Topic shape drift and sharding
+
+`ingest/ingester.go` discovers partitions once at startup, so a topic grown
+while rpkv runs returns `404` forever for keys in the new partitions; and
+re-partitioning a compacted topic leaves a live record for the same key in
+two partitions with no cross-partition order to resolve them, which rpkv can
+detect and report but not resolve.
+
+- [x] `ingest/` refreshes the topic's partition set on a ticker.
+      Verification: an integration test grows a live topic and observes a
+      key in a new partition resolve through `GET /v1/kv/...`.
+- [x] Topic shape (`cleanup.policy`, partition count) exposed on
+      `/healthz` and as Prometheus gauges.
+      Verification: an integration test reads both fields from
+      `/healthz` and both gauges from `/metrics`.
+- [ ] Partition-affine index (`--partitions`, `--partition-from-ordinal`,
+      owned partition set recorded in Pebble under prefix `0x03`).
+      Verification: two processes with disjoint `--partitions` each
+      answer only their own keys, and opening a data dir with a different
+      set is refused.
+- [ ] Router mode (`--mode=router`, fan-out to every shard, never
+      reproducing the producer's partitioner; `X-Rpkv-Timestamp`,
+      `X-Rpkv-Ambiguous`, `rpkv_router_ambiguous_keys_total`).
+      Verification: an integration test grows a topic in flight and
+      observes the newer value returned with `X-Rpkv-Ambiguous: true`.
+- [ ] Sharding numbers on record (index size and ingest rate monolith vs
+      shard; read latency through the router against
+      `docs/benchmarks/read-latency.md`).
+      Verification: JSON plus markdown under `docs/benchmarks/` with the
+      reproducing command. **This task is the phase's exit criterion: if
+      the fan-out cost is not paid back, task 3 is reverted and ADR-008
+      stands unchanged.**
+- [ ] Helm chart: shards as a StatefulSet with one PVC per shard plus a
+      router Deployment.
+      Verification: `helm template` renders and the chart deploys
+      against a local cluster.
+- [ ] Operator in a separate Go module (`operator/go.mod`), watching the
+      topic over the Kafka protocol, reconciling partition count to
+      StatefulSet replicas, grow-only.
+      Verification: an `envtest` reconcile suite plus a `kind`
+      end-to-end that grows a topic and observes the new replica count.
+- [ ] ADR-008 amended to the S-shards x R-replicas matrix, ADR-009
+      (sharded index) and ADR-010 (operator test substrate) written.
+      Verification: the files exist and say it.
