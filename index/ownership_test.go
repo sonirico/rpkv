@@ -49,6 +49,22 @@ func reopenTestOwnershipIndex(tb testing.TB, ix *index.Index, fs vfs.FS) *index.
 	return reopened
 }
 
+// newTestLegacyOwnershipIndex opens a fresh Index, applies a checkpointed
+// entry, then reopens it, returning an Index whose directory has
+// checkpoints but no ownership record - the "legacy directory" shape that
+// predates ownership tracking.
+func newTestLegacyOwnershipIndex(tb testing.TB) (*index.Index, vfs.FS) {
+	tb.Helper()
+
+	ix, fs := newTestOwnershipIndex(tb)
+	require.NoError(tb, ix.Apply(
+		[]index.Entry{{Key: []byte("k1"), Pointer: index.Pointer{Partition: 0, Offset: 10}}},
+		map[int32]int64{0: 10},
+	))
+
+	return reopenTestOwnershipIndex(tb, ix, fs), fs
+}
+
 func TestOwnership(t *testing.T) {
 	t.Run("NewOwnership nil or empty means all", func(t *testing.T) {
 		type testCase struct {
@@ -149,22 +165,24 @@ func TestOwnership(t *testing.T) {
 		assert.True(t, errors.Is(mismatchErr, index.ErrOwnershipMismatch))
 	})
 
-	t.Run("EnsureOwnership on a legacy directory with checkpoints but no record", func(t *testing.T) {
+	t.Run("EnsureOwnership on a legacy directory with checkpoints but no record rejects a narrow claim", func(t *testing.T) {
 		t.Parallel()
 
-		ix, fs := newTestOwnershipIndex(t)
-		require.NoError(t, ix.Apply(
-			[]index.Entry{{Key: []byte("k1"), Pointer: index.Pointer{Partition: 0, Offset: 10}}},
-			map[int32]int64{0: 10},
-		))
+		legacy, _ := newTestLegacyOwnershipIndex(t)
 
-		firstReopen := reopenTestOwnershipIndex(t, ix, fs)
-		mismatchErr := firstReopen.EnsureOwnership(index.NewOwnership([]int32{0}))
+		mismatchErr := legacy.EnsureOwnership(index.NewOwnership([]int32{0}))
+
 		require.Error(t, mismatchErr)
 		assert.True(t, errors.Is(mismatchErr, index.ErrOwnershipMismatch))
+	})
 
-		secondReopen := reopenTestOwnershipIndex(t, firstReopen, fs)
-		allErr := secondReopen.EnsureOwnership(index.NewOwnership(nil))
+	t.Run("EnsureOwnership on a legacy directory with checkpoints but no record accepts an all claim", func(t *testing.T) {
+		t.Parallel()
+
+		legacy, _ := newTestLegacyOwnershipIndex(t)
+
+		allErr := legacy.EnsureOwnership(index.NewOwnership(nil))
+
 		assert.NoError(t, allErr)
 	})
 }
