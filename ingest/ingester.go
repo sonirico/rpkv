@@ -27,6 +27,7 @@ type Ingester struct {
 	logger          *slog.Logger
 	skippedNullKeys atomic.Int64
 	metrics         Metrics
+	owned           index.Ownership
 
 	mu       sync.Mutex
 	assigned map[int32]struct{}
@@ -37,17 +38,18 @@ type Ingester struct {
 // responsibility.
 func New(
 	client *kgo.Client,
-	index *index.Index,
+	idx *index.Index,
 	topic string,
 	logger *slog.Logger,
 	opts ...Option,
 ) *Ingester {
 	in := &Ingester{
 		client:   client,
-		index:    index,
+		index:    idx,
 		topic:    topic,
 		logger:   logger,
 		assigned: make(map[int32]struct{}),
+		owned:    index.NewOwnership(nil),
 		metrics: Metrics{
 			ApplyBatchSize:  metrics.NewNoopHistogram(),
 			NullKeysSkipped: metrics.NewNoopCounter(),
@@ -115,10 +117,11 @@ func (in *Ingester) SkippedNullKeys() int64 {
 	return in.skippedNullKeys.Load()
 }
 
-// syncPartitions lists the topic's current partitions and assigns for
-// direct consumption every partition not already in in.assigned, each
-// starting at its checkpoint+1 (or the log start when no checkpoint
-// exists). Partitions already assigned are left alone.
+// syncPartitions lists the topic's current partitions, ignores any not
+// owned by in.owned, and assigns for direct consumption every remaining
+// partition not already in in.assigned, each starting at its
+// checkpoint+1 (or the log start when no checkpoint exists). Partitions
+// already assigned are left alone.
 func (in *Ingester) syncPartitions(ctx context.Context) error {
 	admin := kadm.NewClient(in.client)
 
@@ -139,6 +142,9 @@ func (in *Ingester) syncPartitions(ctx context.Context) error {
 
 	offsets := make(map[int32]kgo.Offset)
 	for partition := range detail.Partitions {
+		if !in.owned.Owns(partition) {
+			continue
+		}
 		if _, ok := in.assigned[partition]; ok {
 			continue
 		}

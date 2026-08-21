@@ -15,6 +15,7 @@ import (
 const (
 	entryKeyPrefix      byte = 0x01
 	checkpointKeyPrefix byte = 0x02
+	ownershipKeyPrefix  byte = 0x03
 
 	pointerValueLen  = 4 + 8 // partition int32 BE ++ offset int64 BE
 	offsetValueLen   = 8     // checkpoint offset int64 BE

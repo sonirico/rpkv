@@ -7,6 +7,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,6 +28,7 @@ type Config struct {
 	DataDir         string
 	Listen          string
 	MetadataRefresh time.Duration
+	Partitions      []int32
 }
 
 // Parse reads the configuration from args per SPEC: each flag falls back
@@ -58,6 +61,16 @@ func Parse(args []string) (Config, error) {
 		ent.Get("RPKV_METADATA_REFRESH", defaultMetadataRefresh),
 		"partition metadata refresh interval (env RPKV_METADATA_REFRESH)",
 	)
+	partitions := fs.String(
+		"partitions",
+		ent.Get("RPKV_PARTITIONS", ""),
+		"comma-separated partitions to own, empty = all (env RPKV_PARTITIONS)",
+	)
+	partitionFromOrdinal := fs.String(
+		"partition-from-ordinal",
+		ent.Get("RPKV_PARTITION_FROM_ORDINAL", ""),
+		"derive the owned partition from the StatefulSet pod ordinal (env RPKV_PARTITION_FROM_ORDINAL)",
+	)
 
 	if err := fs.Parse(args); err != nil {
 		return Config{}, err
@@ -77,13 +90,84 @@ func Parse(args []string) (Config, error) {
 		return Config{}, errors.New("config: metadata-refresh must be positive")
 	}
 
+	partitionList := splitList(*partitions)
+	var fromOrdinal bool
+	if *partitionFromOrdinal != "" {
+		fromOrdinal, err = strconv.ParseBool(*partitionFromOrdinal)
+		if err != nil {
+			return Config{}, fmt.Errorf("config: partition-from-ordinal: %w", err)
+		}
+	}
+	if len(partitionList) > 0 && fromOrdinal {
+		return Config{}, errors.New(
+			"config: partitions and partition-from-ordinal are mutually exclusive",
+		)
+	}
+
+	var ownedPartitions []int32
+	switch {
+	case fromOrdinal:
+		ownedPartitions, err = partitionsFromHostnameOrdinal()
+		if err != nil {
+			return Config{}, err
+		}
+	case len(partitionList) > 0:
+		ownedPartitions, err = parsePartitions(partitionList)
+		if err != nil {
+			return Config{}, err
+		}
+	}
+
 	return Config{
 		Brokers:         splitList(*brokers),
 		Topics:          splitList(*topics),
 		DataDir:         *dataDir,
 		Listen:          *listen,
 		MetadataRefresh: refresh,
+		Partitions:      ownedPartitions,
 	}, nil
+}
+
+func parsePartitions(parts []string) ([]int32, error) {
+	out := make([]int32, 0, len(parts))
+	for _, p := range parts {
+		n, err := strconv.ParseInt(p, 10, 32)
+		if err != nil || n < 0 {
+			return nil, fmt.Errorf("config: partitions: invalid partition %q", p)
+		}
+		out = append(out, int32(n))
+	}
+	return out, nil
+}
+
+func partitionsFromHostnameOrdinal() ([]int32, error) {
+	hostname := ent.Get("HOSTNAME", "")
+	if hostname == "" {
+		h, err := os.Hostname()
+		if err != nil {
+			return nil, fmt.Errorf("config: partition-from-ordinal: %w", err)
+		}
+		hostname = h
+	}
+
+	idx := strings.LastIndex(hostname, "-")
+	if idx < 0 {
+		return nil, fmt.Errorf(
+			"config: partition-from-ordinal: hostname %q has no ordinal suffix",
+			hostname,
+		)
+	}
+
+	suffix := hostname[idx+1:]
+	ordinal, err := strconv.ParseInt(suffix, 10, 32)
+	if err != nil || ordinal < 0 {
+		return nil, fmt.Errorf(
+			"config: partition-from-ordinal: hostname %q has no ordinal suffix",
+			hostname,
+		)
+	}
+
+	return []int32{int32(ordinal)}, nil
 }
 
 func splitList(s string) []string {

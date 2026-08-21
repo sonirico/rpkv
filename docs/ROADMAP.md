@@ -148,7 +148,7 @@ detect and report but not resolve.
       `/healthz` and as Prometheus gauges.
       Verification: an integration test reads both fields from
       `/healthz` and both gauges from `/metrics`.
-- [ ] Partition-affine index (`--partitions`, `--partition-from-ordinal`,
+- [x] Partition-affine index (`--partitions`, `--partition-from-ordinal`,
       owned partition set recorded in Pebble under prefix `0x03`).
       Verification: two processes with disjoint `--partitions` each
       answer only their own keys, and opening a data dir with a different

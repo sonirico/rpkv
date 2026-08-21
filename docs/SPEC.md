@@ -112,9 +112,19 @@ Kafka topic names are `[a-zA-Z0-9._-]+`, filesystem-safe verbatim.
 |---|---|
 | `0x01 ++ user_key` | `partition int32 BE (4B) ++ offset int64 BE (8B)` |
 | `0x02 ++ partition int32 BE (4B)` | `checkpoint offset int64 BE (8B)` - highest **applied** offset |
+| `0x03` | `mode byte (0 = all, 1 = explicit) ++ n * partition int32 BE` - single record for the owned partition set |
 
-No other keys. All writes go through `pebble.Batch` with `Sync` on the
-batch commit that carries a checkpoint advance.
+No other keys than `0x01`, `0x02` and `0x03`. All writes go through
+`pebble.Batch` with `Sync` on the batch commit that carries a checkpoint
+advance.
+
+`EnsureOwnership` (`index/ownership.go`) guards a data directory against
+being reattached to the wrong shard: a recorded set equal to the
+configured one lets the open continue; a recorded set that differs
+refuses the open with `ErrOwnershipMismatch`; no record but existing
+checkpoints means a pre-sharding data directory, treated as the implicit
+"all" set; no record and an empty directory adopts the configured set and
+records it.
 
 ### `index/`
 
@@ -190,9 +200,14 @@ Flags, each with an env fallback (flag wins): `--brokers`/`RPKV_BROKERS`
 (comma-separated, required), `--topics`/`RPKV_TOPICS` (comma-separated,
 required), `--data-dir`/`RPKV_DATA_DIR` (default `./rpkv-data`),
 `--listen`/`RPKV_LISTEN` (default `:8080`),
-`--metadata-refresh`/`RPKV_METADATA_REFRESH` (default `30s`). MVP speaks
-PLAINTEXT; SASL/TLS is a later roadmap task (env names will follow the
-protocol: `RPKV_SASL_USER`, not vendor names).
+`--metadata-refresh`/`RPKV_METADATA_REFRESH` (default `30s`),
+`--partitions`/`RPKV_PARTITIONS` (comma-separated, empty = all),
+`--partition-from-ordinal`/`RPKV_PARTITION_FROM_ORDINAL` (bool; derives
+the owned partition from the hostname suffix after the last `-`, the pod
+ordinal of a StatefulSet). `--partitions` and `--partition-from-ordinal`
+are mutually exclusive. MVP speaks PLAINTEXT; SASL/TLS is a later roadmap
+task (env names will follow the protocol: `RPKV_SASL_USER`, not vendor
+names).
 
 ### `metrics/`
 

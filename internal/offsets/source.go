@@ -7,6 +7,8 @@ import (
 	"fmt"
 
 	"github.com/twmb/franz-go/pkg/kadm"
+
+	"github.com/sonirico/rpkv/index"
 )
 
 // Source lists a topic's per-partition log-end offsets through the Kafka
@@ -14,14 +16,17 @@ import (
 type Source struct {
 	admin *kadm.Client
 	topic string
+	owned index.Ownership
 }
 
-// NewSource wires an already-built kadm client into a Source for topic.
-func NewSource(admin *kadm.Client, topic string) *Source {
-	return &Source{admin: admin, topic: topic}
+// NewSource wires an already-built kadm client into a Source for topic,
+// restricted to the given partition ownership.
+func NewSource(admin *kadm.Client, topic string, owned index.Ownership) *Source {
+	return &Source{admin: admin, topic: topic, owned: owned}
 }
 
-// LogEndOffsets returns partition -> log-end offset for the topic.
+// LogEndOffsets returns partition -> log-end offset for the topic,
+// restricted to the owned partitions.
 func (s *Source) LogEndOffsets(ctx context.Context) (map[int32]int64, error) {
 	listed, err := s.admin.ListEndOffsets(ctx, s.topic)
 	if err != nil {
@@ -35,5 +40,10 @@ func (s *Source) LogEndOffsets(ctx context.Context) (map[int32]int64, error) {
 	listed.Each(func(lo kadm.ListedOffset) {
 		ends[lo.Partition] = lo.Offset
 	})
+	for p := range ends {
+		if !s.owned.Owns(p) {
+			delete(ends, p)
+		}
+	}
 	return ends, nil
 }
