@@ -169,6 +169,9 @@ bench-read:
 bench-index-size:
     RPKV_BENCH=1 RPKV_BENCH_OUT={{justfile_directory()}}/docs/benchmarks/index-size.json go test -run TestIndexSizeBenchmark ./index -v -count=1
 
+bench-shard-index-size:
+    RPKV_BENCH=1 RPKV_BENCH_OUT={{justfile_directory()}}/docs/benchmarks/sharding-index-size.json go test -run TestShardingIndexSizeBenchmark ./index -v -count=1
+
 bench-rebuild:
     RPKV_BENCH=1 RPKV_BENCH_OUT={{justfile_directory()}}/docs/benchmarks/rebuild-rate.json go test -tags integration -p 1 -run TestRebuildRateBenchmark ./internal/app -v -count=1
 
