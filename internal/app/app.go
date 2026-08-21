@@ -62,6 +62,8 @@ func New(cfg config.Config, logger *slog.Logger, clk clock.Clock) (*App, error) 
 		return nil, fmt.Errorf("app: metrics sinks: %w", err)
 	}
 
+	owned := index.NewOwnership(cfg.Partitions)
+
 	for _, topic := range cfg.Topics {
 		db, err := pebble.Open(filepath.Join(cfg.DataDir, "topics", topic), &pebble.Options{})
 		if err != nil {
@@ -72,6 +74,16 @@ func New(cfg config.Config, logger *slog.Logger, clk clock.Clock) (*App, error) 
 		}
 
 		ix := index.New(db)
+
+		if err := ix.EnsureOwnership(owned); err != nil {
+			if closeErr := ix.Close(); closeErr != nil {
+				logger.Error("close partial app", "error", closeErr)
+			}
+			if closeErr := closeTopicRuntimes(topics); closeErr != nil {
+				logger.Error("close partial app", "error", closeErr)
+			}
+			return nil, fmt.Errorf("app: ensure ownership %q: %w", topic, err)
+		}
 
 		ingestClient, err := kgo.NewClient(kgo.SeedBrokers(cfg.Brokers...))
 		if err != nil {
@@ -102,10 +114,11 @@ func New(cfg config.Config, logger *slog.Logger, clk clock.Clock) (*App, error) 
 			topic,
 			logger,
 			ingest.WithMetrics(sinks.IngestMetrics(topic)),
+			ingest.WithPartitions(owned),
 		)
 		f := fetch.New(fetchClient, topic, fetch.WithMetrics(sinks.FetchMetrics(topic)))
 		admin := kadm.NewClient(fetchClient)
-		src := offsets.NewSource(admin, topic)
+		src := offsets.NewSource(admin, topic, owned)
 		shapeWatcher := topicshape.NewWatcher(admin, admin, topic, clk, cfg.MetadataRefresh, logger)
 
 		if err := sinks.RegisterLag(topic, ix, src); err != nil {
