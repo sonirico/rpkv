@@ -1,13 +1,55 @@
 package ingest
 
 import (
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kgo"
 
 	"github.com/sonirico/rpkv/index"
 )
+
+// newTestIngester wires an Ingester over a kgo.Client that does not dial
+// until first use, so it is constructible and inspectable without a live
+// broker.
+func newTestIngester(t *testing.T) *Ingester {
+	t.Helper()
+
+	client, err := kgo.NewClient(kgo.SeedBrokers("127.0.0.1:9092"))
+	require.NoError(t, err)
+	t.Cleanup(client.Close)
+
+	return New(client, nil, "orders", slog.Default())
+}
+
+func TestNew(t *testing.T) {
+	t.Parallel()
+
+	t.Run("wires the topic and starts with no assigned partitions", func(t *testing.T) {
+		t.Parallel()
+
+		in := newTestIngester(t)
+
+		assert.Equal(t, "orders", in.topic)
+		assert.Equal(t, 0, in.AssignedPartitions())
+	})
+}
+
+func TestAssignedPartitions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("reports zero before any partition sync", func(t *testing.T) {
+		t.Parallel()
+
+		in := newTestIngester(t)
+
+		got := in.AssignedPartitions()
+
+		assert.Equal(t, 0, got)
+	})
+}
 
 func TestResumeOffset(t *testing.T) {
 	t.Parallel()

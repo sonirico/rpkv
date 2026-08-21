@@ -42,7 +42,6 @@ type topicRuntime struct {
 type App struct {
 	cfg            config.Config
 	logger         *slog.Logger
-	clk            clock.Clock
 	server         *server.Server
 	metricsHandler http.Handler
 	topics         []*topicRuntime
@@ -148,7 +147,6 @@ func New(cfg config.Config, logger *slog.Logger, clk clock.Clock) (*App, error) 
 	return &App{
 		cfg:            cfg,
 		logger:         logger,
-		clk:            clk,
 		server:         srv,
 		metricsHandler: sinks.Handler(),
 		topics:         topics,
