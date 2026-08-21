@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "rpkv.fullname" . }}-router
+  labels:
+    {{- include "rpkv.labels" . | nindent 4 }}
+    app.kubernetes.io/component: router
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.service.port }}
+      name: http
+  selector:
+    {{- include "rpkv.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: router
