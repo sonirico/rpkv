@@ -129,6 +129,7 @@ func TestServerGet(t *testing.T) {
 		wantHeaders map[string]string
 	}
 
+	hitTimestamp := time.UnixMilli(1700000000000).UTC()
 	hitPtr := index.Pointer{Partition: 1, Offset: 7}
 	hitBackends := map[string]Backend{
 		"orders": newTestBackend(
@@ -136,7 +137,7 @@ func TestServerGet(t *testing.T) {
 				lookups:     []index.Lookup{{Pointer: hitPtr, Found: true}},
 				checkpoints: []int64{9},
 			},
-			&fakeFetcher{results: []fetch.Result{{Value: []byte("v1")}}},
+			&fakeFetcher{results: []fetch.Result{{Value: []byte("v1"), Timestamp: hitTimestamp}}},
 			&fakeOffsets{},
 			newTestShapeSource(TopicShape{}),
 		),
@@ -153,6 +154,7 @@ func TestServerGet(t *testing.T) {
 				"X-Rpkv-Partition":  "1",
 				"X-Rpkv-Offset":     "7",
 				"X-Rpkv-Checkpoint": "9",
+				"X-Rpkv-Timestamp":  "1700000000000",
 			},
 		},
 		{
@@ -202,6 +204,7 @@ func TestServerGet(t *testing.T) {
 				"X-Rpkv-Partition":  "1",
 				"X-Rpkv-Offset":     "7",
 				"X-Rpkv-Checkpoint": "9",
+				"X-Rpkv-Timestamp":  "1700000000000",
 			},
 		},
 		{
@@ -285,6 +288,7 @@ func TestServerGetSupersede(t *testing.T) {
 	const notifyTimeout = 5 * time.Second
 
 	t.Run("resolves within budget", func(t *testing.T) {
+		supersedeTimestamp := time.UnixMilli(1700000000000).UTC()
 		ptrA := index.Pointer{Partition: 0, Offset: 10}
 		ptrB := index.Pointer{Partition: 0, Offset: 30}
 		backends := map[string]Backend{
@@ -296,7 +300,10 @@ func TestServerGetSupersede(t *testing.T) {
 					},
 					checkpoints: []int64{5, 40},
 				},
-				&fakeFetcher{results: []fetch.Result{{Superseded: true}, {Value: []byte("v2")}}},
+				&fakeFetcher{results: []fetch.Result{
+					{Superseded: true},
+					{Value: []byte("v2"), Timestamp: supersedeTimestamp},
+				}},
 				&fakeOffsets{},
 				newTestShapeSource(TopicShape{}),
 			),
@@ -339,6 +346,7 @@ func TestServerGetSupersede(t *testing.T) {
 		assert.Equal(t, "0", rec.Header().Get("X-Rpkv-Partition"))
 		assert.Equal(t, "30", rec.Header().Get("X-Rpkv-Offset"))
 		assert.Equal(t, "40", rec.Header().Get("X-Rpkv-Checkpoint"))
+		assert.Equal(t, "1700000000000", rec.Header().Get("X-Rpkv-Timestamp"))
 		assert.Equal(t, float64(2), supersedeRetries.Count())
 	})
 

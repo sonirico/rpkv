@@ -2,6 +2,7 @@ package fetch
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -14,6 +15,7 @@ func TestVerifyFetch(t *testing.T) {
 
 	ptr := index.Pointer{Partition: 0, Offset: 10}
 	key := []byte("k1")
+	ts := time.UnixMilli(1700000000000).UTC()
 
 	tests := []struct {
 		name           string
@@ -25,9 +27,9 @@ func TestVerifyFetch(t *testing.T) {
 		{
 			name: "exact offset and equal key resolves value",
 			records: []*kgo.Record{
-				{Key: key, Value: []byte("v1"), Offset: 10},
+				{Key: key, Value: []byte("v1"), Offset: 10, Timestamp: ts},
 			},
-			wantResult:   Result{Value: []byte("v1")},
+			wantResult:   Result{Value: []byte("v1"), Timestamp: ts},
 			wantResolved: true,
 		},
 		{
