@@ -19,8 +19,11 @@ redpanda_port := "19092"
 
 # Every hand-written Go file. .claude/ is excluded: agent worktrees are
 # gitignored copies of this same repo; formatting them reaches outside the
-# checkout and does nothing useful.
-go_files := "$(find . -name '*.go' -not -path './.claude/*')"
+# checkout and does nothing useful. operator/ is excluded: it is its own Go
+# module, and goimports/golines run from the root resolve its imports
+# against the wrong module - operator-check formats it (gofmt, module-aware)
+# on its own.
+go_files := "$(find . -name '*.go' -not -path './.claude/*' -not -path './operator/*')"
 
 _default:
     @just --list
@@ -73,7 +76,7 @@ fmt-check:
             exit 1
         fi
     done
-    files="$(find . -name '*.go' -not -path './.claude/*')"
+    files="$(find . -name '*.go' -not -path './.claude/*' -not -path './operator/*')"
     unformatted="$(gofmt -l $files; goimports -local {{ local_prefix }} -l $files; golines -l $files)"
     if [[ -n "$unformatted" ]]; then
         echo "not formatted (run 'just fmt'):"
@@ -96,6 +99,9 @@ test-race:
 
 # Gates for the operator module (fmt, vet, build, race tests, generated
 # files fresh); no-op until operator/ exists. Lint stays root-only.
+# Freshness is checked the same way generate-check would express it: run
+# the generator into place, then `git diff --exit-code` - a diff means the
+# committed deepcopy/CRD drifted from the API types that produce them.
 operator-check:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -105,6 +111,12 @@ operator-check:
     go vet ./...
     go build ./...
     go test -race ./...
+    go run sigs.k8s.io/controller-tools/cmd/controller-gen@v0.21.0 object crd:crdVersions=v1 paths=./... output:crd:artifacts:config=config/crd/bases
+    git diff --exit-code -- .
+
+# Regenerate operator deepcopy methods and CRD yaml from the API types.
+operator-generate:
+    cd operator && go run sigs.k8s.io/controller-tools/cmd/controller-gen@v0.21.0 object crd:crdVersions=v1 paths=./... output:crd:artifacts:config=config/crd/bases
 
 # Start the single-node dev-loop Redpanda container - a manual convenience
 # for poking a broker with rpk by hand, NOT part of the test path since
