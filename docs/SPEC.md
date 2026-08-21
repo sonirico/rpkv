@@ -181,7 +181,7 @@ is transport-level only.
 
 | Case | Response |
 |---|---|
-| Hit | `200`, body = raw value bytes; headers `X-Rpkv-Partition`, `X-Rpkv-Offset`, `X-Rpkv-Checkpoint` |
+| Hit | `200`, body = raw value bytes; headers `X-Rpkv-Partition`, `X-Rpkv-Offset`, `X-Rpkv-Checkpoint`, `X-Rpkv-Timestamp` |
 | Key not in index | `404`, empty body |
 | Evicted by retention | `410` |
 | Superseded and catch-up did not resolve within budget | `503`, `Retry-After: 1` |
@@ -205,9 +205,35 @@ required), `--data-dir`/`RPKV_DATA_DIR` (default `./rpkv-data`),
 `--partition-from-ordinal`/`RPKV_PARTITION_FROM_ORDINAL` (bool; derives
 the owned partition from the hostname suffix after the last `-`, the pod
 ordinal of a StatefulSet). `--partitions` and `--partition-from-ordinal`
-are mutually exclusive. MVP speaks PLAINTEXT; SASL/TLS is a later roadmap
-task (env names will follow the protocol: `RPKV_SASL_USER`, not vendor
-names).
+are mutually exclusive. `--mode`/`RPKV_MODE` (`index` or `router`,
+default `index`) selects the process mode; `--shards`/`RPKV_SHARDS`
+(comma-separated shard addresses) is required in router mode and
+rejected in index mode. `--partitions` and `--partition-from-ordinal`
+are index-mode only and are rejected in router mode. `--brokers` and
+`--topics` are not required in router mode - a router has no index to
+ingest into. MVP speaks PLAINTEXT; SASL/TLS is a later roadmap task (env
+names will follow the protocol: `RPKV_SASL_USER`, not vendor names).
+
+### Router mode
+
+In router mode rpkv fans a `GET /v1/kv/{topic}/{key}` out to every
+configured shard and waits for all of them to answer; it never
+reproduces the producer's partitioner, so it cannot address the one
+shard that owns a key without asking. Response status is picked by
+precedence across the shard answers: `200` (a hit) beats `410`
+(evicted) beats `503` (superseded, still catching up) beats `400`
+(bad request) beats a transport error or any other unexpected status
+(returned as `502`) beats `404` (no shard has the key).
+
+Two or more shards can answer `200` for the same key when a
+re-partitioning has left a live record for it in more than one
+partition, each owned by a different shard. The router resolves the
+ambiguity best-effort by the record's producer-assigned timestamp
+(`X-Rpkv-Timestamp`, since clocks across producers are not
+guaranteed to agree): the highest timestamp wins. The response then
+carries `X-Rpkv-Ambiguous: true` and increments
+`rpkv_router_ambiguous_keys_total`, so the ambiguity is visible to the
+caller and to metrics rather than silently resolved.
 
 ### `metrics/`
 
