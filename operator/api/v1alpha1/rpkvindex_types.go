@@ -16,8 +16,9 @@ type RpkvIndexSpec struct {
 	// +kubebuilder:default=8080
 	ServicePort int32 `json:"servicePort,omitempty"`
 	// +kubebuilder:default=1
-	RouterReplicas int32            `json:"routerReplicas,omitempty"`
-	Storage        RpkvIndexStorage `json:"storage,omitempty"`
+	RouterReplicas int32 `json:"routerReplicas,omitempty"`
+	// +kubebuilder:default={}
+	Storage RpkvIndexStorage `json:"storage,omitempty"`
 }
 
 // RpkvIndexStorage sizes each shard's PersistentVolumeClaim.

@@ -20,7 +20,7 @@ import (
 	rpkvv1alpha1 "github.com/sonirico/rpkv/operator/api/v1alpha1"
 )
 
-// testPartitionSource is a stub partitionSource returning a fixed
+// testPartitionSource is a stub PartitionSource returning a fixed
 // partition count or error. The partition count is held in an
 // atomic.Int32 so the envtest suite can mutate it from the test
 // goroutine while the manager's reconcile loop reads it concurrently.
@@ -94,7 +94,7 @@ func newTestReconciler(
 	t *testing.T,
 	scheme *runtime.Scheme,
 	idx *rpkvv1alpha1.RpkvIndex,
-	ps partitionSource,
+	ps PartitionSource,
 	hs healthSource,
 ) (*Reconciler, client.Client) {
 	t.Helper()
@@ -105,7 +105,7 @@ func newTestReconciler(
 		WithObjects(idx).
 		Build()
 
-	factory := func(_ []string) (partitionSource, error) { return ps, nil }
+	factory := func(_ []string) (PartitionSource, error) { return ps, nil }
 	return NewReconciler(c, scheme, factory, hs), c
 }
 
@@ -162,7 +162,7 @@ func TestReconcile(t *testing.T) {
 		require.NoError(t, err)
 
 		grown := NewReconciler(c, scheme,
-			func(_ []string) (partitionSource, error) { return newTestPartitionSource(5, nil), nil },
+			func(_ []string) (PartitionSource, error) { return newTestPartitionSource(5, nil), nil },
 			newTestHealthSource(topicShape{CleanupPolicy: "delete", PartitionCount: 5}, nil),
 		)
 		_, err = grown.Reconcile(context.Background(), req)
@@ -187,7 +187,7 @@ func TestReconcile(t *testing.T) {
 		require.NoError(t, err)
 
 		shrunk := NewReconciler(c, scheme,
-			func(_ []string) (partitionSource, error) { return newTestPartitionSource(2, nil), nil },
+			func(_ []string) (PartitionSource, error) { return newTestPartitionSource(2, nil), nil },
 			newTestHealthSource(topicShape{CleanupPolicy: "delete", PartitionCount: 2}, nil),
 		)
 		_, err = shrunk.Reconcile(context.Background(), req)
@@ -286,7 +286,7 @@ func TestReconcile(t *testing.T) {
 		require.Equal(t, metav1.ConditionFalse, cond.Status)
 
 		grown := NewReconciler(c, scheme,
-			func(_ []string) (partitionSource, error) { return newTestPartitionSource(5, nil), nil },
+			func(_ []string) (PartitionSource, error) { return newTestPartitionSource(5, nil), nil },
 			newTestHealthSource(topicShape{CleanupPolicy: "compact", PartitionCount: 5}, nil),
 		)
 		_, err = grown.Reconcile(context.Background(), req)
@@ -299,7 +299,7 @@ func TestReconcile(t *testing.T) {
 		require.Equal(t, metav1.ConditionTrue, cond.Status)
 
 		clean := NewReconciler(c, scheme,
-			func(_ []string) (partitionSource, error) { return newTestPartitionSource(5, nil), nil },
+			func(_ []string) (PartitionSource, error) { return newTestPartitionSource(5, nil), nil },
 			newTestHealthSource(topicShape{CleanupPolicy: "compact", PartitionCount: 5}, nil),
 		)
 		_, err = clean.Reconcile(context.Background(), req)
@@ -338,5 +338,27 @@ func TestReconcile(t *testing.T) {
 		require.NotNil(t, repartitionedCond)
 		require.Equal(t, metav1.ConditionUnknown, repartitionedCond.Status)
 		require.Equal(t, reasonHealthzUnreachable, repartitionedCond.Reason)
+	})
+
+	t.Run("omitted storage block defaults to 1Gi", func(t *testing.T) {
+		t.Parallel()
+
+		scheme := newTestScheme(t)
+		idx := newTestRpkvIndex()
+		idx.Spec.Storage = rpkvv1alpha1.RpkvIndexStorage{}
+		reconciler, c := newTestReconciler(t, scheme, idx,
+			newTestPartitionSource(3, nil),
+			newTestHealthSource(topicShape{CleanupPolicy: "delete", PartitionCount: 3}, nil),
+		)
+		req := ctrl.Request{NamespacedName: client.ObjectKeyFromObject(idx)}
+
+		_, err := reconciler.Reconcile(context.Background(), req)
+		require.NoError(t, err)
+
+		var sts appsv1.StatefulSet
+		require.NoError(t, c.Get(context.Background(), client.ObjectKey{Namespace: "default", Name: "demo-shard"}, &sts))
+		require.Len(t, sts.Spec.VolumeClaimTemplates, 1)
+		requestedStorage := sts.Spec.VolumeClaimTemplates[0].Spec.Resources.Requests[corev1.ResourceStorage]
+		require.Equal(t, "1Gi", requestedStorage.String())
 	})
 }
