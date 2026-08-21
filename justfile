@@ -118,6 +118,15 @@ operator-check:
 operator-generate:
     cd operator && go run sigs.k8s.io/controller-tools/cmd/controller-gen@v0.21.0 object crd:crdVersions=v1 paths=./... output:crd:artifacts:config=config/crd/bases
 
+# envtest reconcile suite for the operator (downloads kube-apiserver
+# binaries on first run).
+operator-envtest:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd operator
+    export KUBEBUILDER_ASSETS="$(go run sigs.k8s.io/controller-runtime/tools/setup-envtest@v0.24.1 use 1.36.x -p path)"
+    RPKV_ENVTEST=1 go test ./internal/controller/ -run TestEnvtest -v -count=1
+
 # Start the single-node dev-loop Redpanda container - a manual convenience
 # for poking a broker with rpk by hand, NOT part of the test path since
 # ADR-006 (tests self-provision via internal/rptest; to point them here,
