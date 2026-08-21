@@ -94,6 +94,18 @@ test:
 test-race:
     go test ./... -race
 
+# Gates for the operator module (fmt, vet, build, race tests, generated
+# files fresh); no-op until operator/ exists. Lint stays root-only.
+operator-check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ ! -d operator ]]; then exit 0; fi
+    cd operator
+    test -z "$(gofmt -l .)"
+    go vet ./...
+    go build ./...
+    go test -race ./...
+
 # Start the single-node dev-loop Redpanda container - a manual convenience
 # for poking a broker with rpk by hand, NOT part of the test path since
 # ADR-006 (tests self-provision via internal/rptest; to point them here,
@@ -204,7 +216,7 @@ harness-test:
 build:
     CGO_ENABLED=0 go build ./...
 
-check: harness-test ascii-check fmt-check vet lint build boundaries-check test-race
+check: harness-test ascii-check fmt-check vet lint build boundaries-check test-race operator-check
 
 # The gate. Writes .claude/receipts/<sha>/quality-pass.json.
 quality-pass:

@@ -84,6 +84,32 @@ new_repo_with_upstream() {
     echo "$dir"
 }
 
+# new_repo_with_operator_module <name> - a repo with origin/HEAD set (like
+# new_repo_with_origin_head) plus a nested operator/ Go module - its own
+# go.mod, one function with a passing test - committed as the baseline.
+# quality-pass.sh's per-module coverage pass needs a real module to `cd
+# operator && go test` in.
+new_repo_with_operator_module() {
+    local dir="${work}/$1"
+    mkdir -p "${dir}/operator"
+    git -C "$dir" init -q
+    git -C "$dir" symbolic-ref HEAD refs/heads/main
+    git -C "$dir" config user.email harness@test
+    git -C "$dir" config user.name harness
+    printf 'module example.com/%s/operator\n\ngo 1.22\n' "$1" > "${dir}/operator/go.mod"
+    printf 'package m\n\nfunc Covered() int { return 1 }\n' > "${dir}/operator/covered.go"
+    printf 'package m\n\nimport "testing"\n\nfunc TestCovered(t *testing.T) {\n\tif Covered() != 1 {\n\t\tt.Fatal("bad")\n\t}\n}\n' \
+        > "${dir}/operator/covered_test.go"
+    git -C "$dir" add -A
+    git -C "$dir" commit -qm seed
+    local bare="${work}/$1.git"
+    git init -q --bare "$bare"
+    git -C "$dir" remote add origin "$bare"
+    git -C "$dir" push -q -u origin main
+    git -C "$dir" remote set-head origin main
+    echo "$dir"
+}
+
 new_go_module() {
     local dir="${work}/$1"
     mkdir -p "$dir"
@@ -184,6 +210,27 @@ repo="$(new_repo qp_no_head)"
 run "quality-pass refuses a clone without origin/HEAD" bash -c "cd '$repo' && bash '${root}/scripts/quality-pass.sh'"
 expect_exit 1
 expect_out "git remote set-head"
+
+# The defect this fixture guards against: `go test ./... -coverpkg=./...`
+# and `go list -m` only see the module they run in, so a changed file inside
+# a nested operator/ module never matched the root module's import-path
+# prefix and silently fell into "no coverage lines matched". `just check`
+# fails here (this fixture has no justfile) - expected, and irrelevant: the
+# receipt's coverage fields are written before that exit code is checked.
+repo="$(new_repo_with_operator_module qp_operator)"
+printf 'package m\n\nfunc Untested() int { return 2 }\n' > "${repo}/operator/uncovered.go"
+git -C "$repo" add -A
+git -C "$repo" commit -qm "add uncovered operator function"
+run "quality-pass measures coverage inside the operator module" bash -c "cd '$repo' && bash '${root}/scripts/quality-pass.sh'"
+expect_exit 1
+sha="$(git -C "$repo" rev-parse HEAD)"
+current="quality-pass receipt lists the operator function as uncovered"
+if jq -e '.coverage.uncovered[] | select(.file == "operator/uncovered.go" and .func == "Untested")' \
+    "${repo}/.claude/receipts/${sha}/quality-pass.json" >/dev/null 2>&1; then
+    ok
+else
+    bad "receipt does not list operator/uncovered.go Untested as uncovered"
+fi
 
 echo "harness-test: quality-pass-gate.sh"
 
