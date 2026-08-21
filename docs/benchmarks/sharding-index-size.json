@@ -1,0 +1,16 @@
+{
+  "keys": 1000000,
+  "partitions": 4,
+  "batch_size": 1000,
+  "monolith": {
+    "keys": 1000000,
+    "bytes_total": 14688687,
+    "bytes_per_key": 14.688687
+  },
+  "shard": {
+    "keys": 250000,
+    "bytes_total": 6666499,
+    "bytes_per_key": 26.665996
+  },
+  "shard_to_monolith_ratio": 0.45385261460061066
+}

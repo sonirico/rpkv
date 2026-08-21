@@ -1,0 +1,16 @@
+{
+  "keys": 1000000,
+  "value_size": 256,
+  "partitions": 4,
+  "monolith": {
+    "keys": 1000000,
+    "elapsed_s": 1.204288913,
+    "keys_per_s": 830365.5287408595
+  },
+  "shard": {
+    "keys": 249558,
+    "elapsed_s": 0.404402613,
+    "keys_per_s": 617102.8375625258
+  },
+  "shard_to_monolith_elapsed_ratio": 0.33580198956793017
+}
