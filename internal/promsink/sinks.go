@@ -128,3 +128,13 @@ func (s *Sinks) RegisterAssignedPartitions(topic string, src assignedPartitionsS
 	}
 	return nil
 }
+
+// RegisterShape registers one shape collector for topic's partition count
+// and cleanup policy onto the registry.
+func (s *Sinks) RegisterShape(topic string, src shapeSource) error {
+	c := newShapeCollector(topic, src)
+	if err := s.registry.Register(c); err != nil {
+		return fmt.Errorf("promsink: register shape collector %q: %w", topic, err)
+	}
+	return nil
+}

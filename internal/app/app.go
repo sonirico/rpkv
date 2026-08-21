@@ -25,6 +25,7 @@ import (
 	"github.com/sonirico/rpkv/internal/config"
 	"github.com/sonirico/rpkv/internal/offsets"
 	"github.com/sonirico/rpkv/internal/promsink"
+	"github.com/sonirico/rpkv/internal/topicshape"
 	"github.com/sonirico/rpkv/server"
 )
 
@@ -36,6 +37,7 @@ type topicRuntime struct {
 	fetchClient  *kgo.Client
 	ingester     *ingest.Ingester
 	refresher    *ingest.Refresher
+	shapeWatcher *topicshape.Watcher
 }
 
 // App is the wired rpkv process: per-topic pipelines plus the HTTP server.
@@ -102,7 +104,9 @@ func New(cfg config.Config, logger *slog.Logger, clk clock.Clock) (*App, error) 
 			ingest.WithMetrics(sinks.IngestMetrics(topic)),
 		)
 		f := fetch.New(fetchClient, topic, fetch.WithMetrics(sinks.FetchMetrics(topic)))
-		src := offsets.NewSource(kadm.NewClient(fetchClient), topic)
+		admin := kadm.NewClient(fetchClient)
+		src := offsets.NewSource(admin, topic)
+		shapeWatcher := topicshape.NewWatcher(admin, admin, topic, clk, cfg.MetadataRefresh, logger)
 
 		if err := sinks.RegisterLag(topic, ix, src); err != nil {
 			fetchClient.Close()
@@ -128,6 +132,18 @@ func New(cfg config.Config, logger *slog.Logger, clk clock.Clock) (*App, error) 
 			return nil, fmt.Errorf("app: register assigned partitions collector %q: %w", topic, err)
 		}
 
+		if err := sinks.RegisterShape(topic, shapeWatcher); err != nil {
+			fetchClient.Close()
+			ingestClient.Close()
+			if closeErr := ix.Close(); closeErr != nil {
+				logger.Error("close partial app", "error", closeErr)
+			}
+			if closeErr := closeTopicRuntimes(topics); closeErr != nil {
+				logger.Error("close partial app", "error", closeErr)
+			}
+			return nil, fmt.Errorf("app: register shape collector %q: %w", topic, err)
+		}
+
 		refresher := ingest.NewRefresher(ing, clk, cfg.MetadataRefresh, logger)
 
 		topics = append(topics, &topicRuntime{
@@ -137,9 +153,10 @@ func New(cfg config.Config, logger *slog.Logger, clk clock.Clock) (*App, error) 
 			fetchClient:  fetchClient,
 			ingester:     ing,
 			refresher:    refresher,
+			shapeWatcher: shapeWatcher,
 		})
 
-		backends[topic] = server.NewBackend(ix, f, src)
+		backends[topic] = server.NewBackend(ix, f, src, shapeWatcher)
 	}
 
 	srv := server.New(backends, clk, logger, server.WithMetrics(sinks.ServerMetrics()))
@@ -188,6 +205,12 @@ func (a *App) Run(ctx context.Context) error {
 		go func() {
 			defer refresherWG.Done()
 			rt.refresher.RunLoop(runCtx)
+		}()
+
+		refresherWG.Add(1)
+		go func() {
+			defer refresherWG.Done()
+			rt.shapeWatcher.RunLoop(runCtx)
 		}()
 	}
 

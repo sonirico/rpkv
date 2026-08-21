@@ -79,6 +79,18 @@ func (f *fakeOffsets) LogEndOffsets(ctx context.Context) (map[int32]int64, error
 	return f.ends, nil
 }
 
+type fakeShapeSource struct {
+	shape TopicShape
+}
+
+func (f *fakeShapeSource) Shape() TopicShape {
+	return f.shape
+}
+
+func newTestShapeSource(shape TopicShape) *fakeShapeSource {
+	return &fakeShapeSource{shape: shape}
+}
+
 // stickyIndex returns the index into a slice of length n for the calls-th
 // call: calls itself while within bounds, the last valid index once
 // exhausted.
@@ -101,8 +113,8 @@ func newTestServer(
 	return New(backends, clk, logger, opts...), clk
 }
 
-func newTestBackend(ix indexReader, f valueFetcher, o offsetSource) Backend {
-	return NewBackend(ix, f, o)
+func newTestBackend(ix indexReader, f valueFetcher, o offsetSource, s shapeSource) Backend {
+	return NewBackend(ix, f, o, s)
 }
 
 func TestServerGet(t *testing.T) {
@@ -126,6 +138,7 @@ func TestServerGet(t *testing.T) {
 			},
 			&fakeFetcher{results: []fetch.Result{{Value: []byte("v1")}}},
 			&fakeOffsets{},
+			newTestShapeSource(TopicShape{}),
 		),
 	}
 
@@ -149,6 +162,7 @@ func TestServerGet(t *testing.T) {
 					&fakeIndex{lookups: []index.Lookup{{Found: false}}},
 					&fakeFetcher{},
 					&fakeOffsets{},
+					newTestShapeSource(TopicShape{}),
 				),
 			},
 			url:        "/v1/kv/orders/missing",
@@ -162,6 +176,7 @@ func TestServerGet(t *testing.T) {
 					&fakeIndex{lookups: []index.Lookup{{Pointer: hitPtr, Found: true}}},
 					&fakeFetcher{results: []fetch.Result{{Evicted: true}}},
 					&fakeOffsets{},
+					newTestShapeSource(TopicShape{}),
 				),
 			},
 			url:        "/v1/kv/orders/k1",
@@ -210,6 +225,7 @@ func TestServerGet(t *testing.T) {
 					&fakeIndex{lookupErr: errTransport},
 					&fakeFetcher{},
 					&fakeOffsets{},
+					newTestShapeSource(TopicShape{}),
 				),
 			},
 			url:        "/v1/kv/orders/k1",
@@ -223,6 +239,7 @@ func TestServerGet(t *testing.T) {
 					&fakeIndex{lookups: []index.Lookup{{Pointer: hitPtr, Found: true}}},
 					&fakeFetcher{err: errTransport},
 					&fakeOffsets{},
+					newTestShapeSource(TopicShape{}),
 				),
 			},
 			url:        "/v1/kv/orders/k1",
@@ -281,6 +298,7 @@ func TestServerGetSupersede(t *testing.T) {
 				},
 				&fakeFetcher{results: []fetch.Result{{Superseded: true}, {Value: []byte("v2")}}},
 				&fakeOffsets{},
+				newTestShapeSource(TopicShape{}),
 			),
 		}
 		supersedeRetries := metricstest.NewCounter()
@@ -334,6 +352,7 @@ func TestServerGetSupersede(t *testing.T) {
 				},
 				&fakeFetcher{results: []fetch.Result{{Superseded: true}}},
 				&fakeOffsets{},
+				newTestShapeSource(TopicShape{}),
 			),
 		}
 		supersedeRetries := metricstest.NewCounter()
@@ -392,6 +411,7 @@ func TestServerGetSupersede(t *testing.T) {
 				},
 				&fakeFetcher{results: []fetch.Result{{Superseded: true}}},
 				&fakeOffsets{},
+				newTestShapeSource(TopicShape{}),
 			),
 		}
 		supersedeRetries := metricstest.NewCounter()
@@ -438,11 +458,13 @@ func TestServerHealthz(t *testing.T) {
 				&fakeIndex{checkpoints: []int64{41}},
 				&fakeFetcher{},
 				&fakeOffsets{ends: map[int32]int64{0: 42}},
+				newTestShapeSource(TopicShape{}),
 			),
 			"events": newTestBackend(
 				&fakeIndex{checkpoints: []int64{-1}},
 				&fakeFetcher{},
 				&fakeOffsets{ends: map[int32]int64{0: 42}},
+				newTestShapeSource(TopicShape{}),
 			),
 		}
 		srv, _ := newTestServer(t, backends)
@@ -480,6 +502,7 @@ func TestServerHealthz(t *testing.T) {
 				&fakeIndex{},
 				&fakeFetcher{},
 				&fakeOffsets{err: errors.New("offsets unavailable")},
+				newTestShapeSource(TopicShape{}),
 			),
 		}
 		srv, _ := newTestServer(t, backends)
@@ -497,5 +520,31 @@ func TestServerHealthz(t *testing.T) {
 		require.True(t, ok)
 		assert.NotEmpty(t, topic.Error)
 		assert.Empty(t, topic.Partitions)
+	})
+
+	t.Run("reports partition count and cleanup policy from the shape source", func(t *testing.T) {
+		backends := map[string]Backend{
+			"orders": newTestBackend(
+				&fakeIndex{checkpoints: []int64{41}},
+				&fakeFetcher{},
+				&fakeOffsets{ends: map[int32]int64{0: 42}},
+				newTestShapeSource(TopicShape{PartitionCount: 3, CleanupPolicy: "compact"}),
+			),
+		}
+		srv, _ := newTestServer(t, backends)
+		req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+		rec := httptest.NewRecorder()
+
+		srv.ServeHTTP(rec, req)
+
+		require.Equal(t, http.StatusOK, rec.Code)
+
+		var got healthResponse
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+
+		topic, ok := got.Topics["orders"]
+		require.True(t, ok)
+		assert.Equal(t, int32(3), topic.PartitionCount)
+		assert.Equal(t, "compact", topic.CleanupPolicy)
 	})
 }

@@ -181,7 +181,8 @@ Supersede handling: on `Superseded`, the server polls
 `index.Checkpoint(ptr.Partition)` until it passes the fetched-forward
 offset, re-resolves and re-fetches; total budget **2s**, waits through the
 `clock.Clock` interface (mockable). `GET /healthz` -> `200` always, JSON
-body with per-partition checkpoint and log-end lag.
+body with per-partition checkpoint and log-end lag, plus per-topic
+`partition_count` and `cleanup_policy`.
 
 ### `cmd/rpkv` configuration
 
@@ -216,12 +217,17 @@ without prometheus. Six frozen metric names:
 | `rpkv_ingest_apply_batch_size` | Histogram, buckets `1,10,50,100,500,1000,5000` | `topic` |
 | `rpkv_ingest_null_keys_skipped_total` | Counter | `topic` |
 | `rpkv_ingest_lag` | Gauge | `topic`, `partition` |
+| `rpkv_topic_partitions` | Gauge | `topic` |
+| `rpkv_topic_compacted` | Gauge | `topic` |
 
 `rpkv_ingest_lag` is computed at scrape time by a `prometheus.Collector`
 over the same checkpoint and log-end-offset data `GET /healthz` reports
 (`max(0, logEnd-checkpoint-1)` per partition), not updated on the ingest
-hot path. `GET /metrics` serves a private `*prometheus.Registry` - never
-the global default registry.
+hot path. `rpkv_topic_partitions` and `rpkv_topic_compacted` are likewise
+computed at scrape time, from the same partition count and cleanup policy
+`GET /healthz` reports; `rpkv_topic_compacted` is `1` when the topic's
+`cleanup.policy` contains `compact`, else `0`. `GET /metrics` serves a
+private `*prometheus.Registry` - never the global default registry.
 
 ### Package layout
 

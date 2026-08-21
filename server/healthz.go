@@ -11,8 +11,10 @@ type healthResponse struct {
 }
 
 type healthTopic struct {
-	Partitions []healthPartition `json:"partitions,omitempty"`
-	Error      string            `json:"error,omitempty"`
+	Partitions     []healthPartition `json:"partitions,omitempty"`
+	PartitionCount int32             `json:"partition_count"`
+	CleanupPolicy  string            `json:"cleanup_policy"`
+	Error          string            `json:"error,omitempty"`
 }
 
 type healthPartition struct {
@@ -40,6 +42,8 @@ func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) buildHealthTopic(r *http.Request, b Backend) healthTopic {
+	shape := b.shape.Shape()
+
 	ends, err := b.offsets.LogEndOffsets(r.Context())
 	if err != nil {
 		return healthTopic{Error: err.Error()}
@@ -72,5 +76,9 @@ func (s *Server) buildHealthTopic(r *http.Request, b Backend) healthTopic {
 		})
 	}
 
-	return healthTopic{Partitions: result}
+	return healthTopic{
+		Partitions:     result,
+		PartitionCount: shape.PartitionCount,
+		CleanupPolicy:  shape.CleanupPolicy,
+	}
 }

@@ -24,15 +24,29 @@ type offsetSource interface {
 	LogEndOffsets(ctx context.Context) (map[int32]int64, error)
 }
 
+// TopicShape is a topic's partition count and cleanup policy, as last
+// observed by a shapeSource.
+type TopicShape struct {
+	PartitionCount int32
+	CleanupPolicy  string
+}
+
+// shapeSource provides a topic's last observed partition count and
+// cleanup policy, used to enrich healthz.
+type shapeSource interface {
+	Shape() TopicShape
+}
+
 // Backend bundles the per-topic dependencies the server reads from.
 type Backend struct {
 	index   indexReader
 	fetcher valueFetcher
 	offsets offsetSource
+	shape   shapeSource
 }
 
-// NewBackend wires an already-built index reader, value fetcher and offset
-// source into a Backend.
-func NewBackend(ix indexReader, f valueFetcher, o offsetSource) Backend {
-	return Backend{index: ix, fetcher: f, offsets: o}
+// NewBackend wires an already-built index reader, value fetcher, offset
+// source and shape source into a Backend.
+func NewBackend(ix indexReader, f valueFetcher, o offsetSource, s shapeSource) Backend {
+	return Backend{index: ix, fetcher: f, offsets: o, shape: s}
 }
