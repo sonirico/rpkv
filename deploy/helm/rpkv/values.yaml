@@ -1,0 +1,27 @@
+image:
+  repository: rpkv
+  tag: dev
+  pullPolicy: IfNotPresent
+
+# Comma-separated broker addresses; required, no default.
+brokers: ""
+# Comma-separated topics to index; required, no default.
+topics: ""
+metadataRefresh: 30s
+
+shards:
+  # One shard per topic partition; a person sets this to the topic's
+  # partition count (the operator automates it later, grow-only).
+  replicas: 4
+  storage:
+    size: 1Gi
+    storageClassName: ""
+
+router:
+  replicas: 1
+
+service:
+  port: 8080
+
+podAnnotations: {}
+resources: {}

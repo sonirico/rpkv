@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "rpkv.fullname" . }}-shard
+  labels:
+    {{- include "rpkv.labels" . | nindent 4 }}
+    app.kubernetes.io/component: shard
+spec:
+  serviceName: {{ include "rpkv.fullname" . }}-shard
+  replicas: {{ .Values.shards.replicas }}
+  selector:
+    matchLabels:
+      {{- include "rpkv.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: shard
+  template:
+    metadata:
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.service.port }}"
+        prometheus.io/path: /metrics
+      labels:
+        {{- include "rpkv.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: shard
+    spec:
+      containers:
+        - name: rpkv
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+          env:
+            - name: RPKV_BROKERS
+              value: {{ required "brokers is required" .Values.brokers | quote }}
+            - name: RPKV_TOPICS
+              value: {{ required "topics is required" .Values.topics | quote }}
+            - name: RPKV_LISTEN
+              value: ":{{ .Values.service.port }}"
+            - name: RPKV_DATA_DIR
+              value: /data
+            - name: RPKV_PARTITION_FROM_ORDINAL
+              value: "true"
+            - name: RPKV_METADATA_REFRESH
+              value: {{ .Values.metadataRefresh | quote }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        {{- if .Values.shards.storage.storageClassName }}
+        storageClassName: {{ .Values.shards.storage.storageClassName }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.shards.storage.size }}
